@@ -1,0 +1,30 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: covid19
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: covid19
+  template:
+    metadata:
+      labels:
+        app: covid19
+    spec:
+      containers:
+      - name: covid19
+        image: tacc/covid19_dash_rolodex_public:latest
+        imagePullPolicy: Always
+        env:
+        - name: REQUESTS_PATHNAME_PREFIX
+          value: "/dash/"
+        - name: PYTHONUNBUFFERED
+          value: "TRUE"
+        ports:
+        - name: httpalt
+          containerPort: 8050
+        command: [ "gunicorn" ]
+        args: [ "-w","10","-b",":8050","-t","200","app:server" ]
+

@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: covid19
+spec:
+  selector:
+    app: covid19
+  type: NodePort
+  ports:
+  - name: httpalt
+    port: 8050
+    targetPort: 8050
+    nodePort: 30851
+

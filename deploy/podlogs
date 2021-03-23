@@ -1,0 +1,6 @@
+#!/bin/bash
+
+for i in `kubectl get pods --selector=app=covid19 -o jsonpath='{.items[*].metadata.name}'`
+do 
+  kubectl logs $i
+done

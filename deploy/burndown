@@ -1,0 +1,7 @@
+#!/bin/bash
+
+echo "Actung!"
+echo "If you're sure you want to take it down, run these:"
+echo
+echo "kubectl delete -f deploy.yml"
+echo "kubectl delete -f service.yml"
