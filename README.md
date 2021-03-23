@@ -1,7 +1,19 @@
-# dash-container
-Template project for a containerized plot.ly dash visualization
+# Visualization of Patient flow data for A2CPS
+Docker container of Dash App to display A2CPS trial consort information.
 
-## Configuring your repository for automatic container builds
+This dashboard is intended for use by study personnel and others interested in the reasons why patients either complete or leave the trial.
+
+## Version History
+| Version   | Date | Description |
+| ------ | ------ | ------ |
+| 0.0.1 | 03/23/2021 | Initial simple dashboard with plotly Sankey Diagram and Data Table. |
+
+
+
+# Automatic Container Build information from parent repository.
+This repository was forked from the TACC dash-container[https://github.com/TACC/dash-container] repo.  
+
+## Configuring your repository for automatic container builds (text from original repo)
 
 ### Github Actions workflows
 
