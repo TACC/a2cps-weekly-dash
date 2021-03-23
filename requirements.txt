@@ -6,3 +6,4 @@ plotly==4.14.3
 plotly-express==0.4.1
 pandas==1.2.3
 numpy==1.20.1
+requests
