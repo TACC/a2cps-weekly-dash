@@ -10,6 +10,7 @@ import pathlib # file paths
 import pandas as pd
 import numpy as np
 import requests
+from datetime import date
 
 # Data visualization
 import plotly.express as px
@@ -29,7 +30,6 @@ from dash.dependencies import Input, Output, State, ALL, MATCH
 DATA_PATH = pathlib.Path(__file__).parent.joinpath("data")
 ASSETS_PATH = pathlib.Path(__file__).parent.joinpath("assets")
 REQUESTS_PATHNAME_PREFIX = os.environ.get("REQUESTS_PATHNAME_PREFIX", "/")
-A2CPS_SANKEY_URL = os.environ.get("A2CPS_SANKEY_URL", None)
 
 # ----------------------------------------------------------------------------
 # STYLING
@@ -37,8 +37,34 @@ A2CPS_SANKEY_URL = os.environ.get("A2CPS_SANKEY_URL", None)
 
 CONTENT_STYLE = {
     "padding": "2rem 1rem",
-    "font-family": '"Times New Roman", Times, serif'
+    "font-family": 'Arial, Helvetica, sans-serif'
 }
+
+export_style = '''
+    position:absolute;
+    right:25px;
+    bottom:-55px;
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 10px;
+    color: #fff;
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+    display: inline-block;
+    font-weight: 400;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    border: 1px solid transparent;
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    border-radius: .25rem;
+    transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+'''
 
 
 # ----------------------------------------------------------------------------
@@ -48,12 +74,34 @@ CONTENT_STYLE = {
 # API DATA
 # ----------------------------------------------------------------------------
 
+## FUNCTIONS FOR LOADING DATA: MOVE TO MODULE
+def load_api_data(api_url):
+    response = requests.get(api_url)
+    try:
+        api_data = response.json()
+    except ValueError as e:
+        return False
+    return api_data
+
+def get_consort_df(api_url):
+    if load_api_data(api_url):
+        api_data = load_api_data(api_url)
+        df = pd.DataFrame.from_dict(api_data)
+    else:
+        cosort_columns = ['source','target','value']
+        df = pd.DataFrame(columns = cosort_columns)
+    return df
+
+
 # Load API data
-response = requests.get(A2CPS_SANKEY_URL)
-redcap_data = response.json()
+api_url = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=consort'
+
+# time of date loading
+today = date.today()
+today_string = "This report generated on " + str(today)
 
 # Convert API Json --> pandas DataFrame
-redcap_df = pd.DataFrame.from_dict(redcap_data)
+redcap_df = get_consort_df(api_url)
 
 # Get df of Nodes present in API
 nodes = pd.DataFrame(list(redcap_df['source'].unique()) + list(redcap_df['target'].unique())).drop_duplicates().reset_index(drop=True)
@@ -99,9 +147,23 @@ sankey_fig_api = go.Figure(data=[go.Sankey(
 def build_datatable(data_source, table_id):
     new_datatable =  dt.DataTable(
             id = table_id,
-            columns=[{"name": i, "id": i} for i in data_source.columns],
-            style_cell= {'textAlign': 'left'},
             data=data_source.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in data_source.columns],
+            css=[{'selector': '.row', 'rule': 'margin: 0; flex-wrap: nowrap'},
+                {'selector':'.export','rule':export_style }
+                # {'selector':'.export','rule':'position:absolute;right:25px;bottom:-35px;font-family:Arial, Helvetica, sans-serif,border-radius: .25re'}
+                ],
+            style_cell= {
+                'text-align':'left',
+                'padding': '5px'
+                },
+            style_as_list_view=True,
+            style_header={
+                'backgroundColor': 'grey',
+                'fontWeight': 'bold',
+                'color': 'white'
+            },
+
             export_format="csv",
         )
     return new_datatable
@@ -110,7 +172,7 @@ def build_datatable(data_source, table_id):
 # ----------------------------------------------------------------------------
 # DASH APP LAYOUT
 # ----------------------------------------------------------------------------
-external_stylesheets_list = [dbc.themes.LITERA] # set any external stylesheets
+external_stylesheets_list = [dbc.themes.SANDSTONE] #  set any external stylesheets
 
 app = dash.Dash(__name__,
                 external_stylesheets=external_stylesheets_list,
@@ -122,19 +184,58 @@ app = dash.Dash(__name__,
 app.layout = html.Div([
     dbc.Row([
         dbc.Col([
-            html.Div([dcc.Graph(figure=sankey_fig_api)],id='div_sankey'),
-        ],width=6)
+            html.H1('CONSORT Report'),
+            html.P(today_string),
+        ],md = 8, lg=10),
+        dbc.Col([
+            dcc.Dropdown(
+                id='dropdown_datasource',
+                options=[
+                    {'label': 'Live Data', 'value': 'api'},
+                    # {'label': 'Historical Data', 'value': 'csv'},
+                ],
+                value='api',
+                style={'display': 'none'} # Remove this when historical data is ready to go
+            ),
+        ],id='dd_datasource',md=4, lg=2)
     ]),
+
+
     dbc.Row([
         dbc.Col([
-            html.Div([build_datatable(redcap_df,'table_csv')],id='div_table' ,style={'padding':'15px'}),
-        ],width=12)
+            html.Div([dcc.Graph(figure=sankey_fig_api)],id='div_sankey'),
+        ],xl=6),
+    # ]),
+    # dbc.Row([
+        dbc.Col([
+            html.Div([build_datatable(redcap_df,'table_csv')],id='div_table'),
+        ],xl=6)
     ])
 
 ], style =CONTENT_STYLE)
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
+
+@app.callback(
+    Output('div_sankey','children'),
+    Output('div_table','children'),
+    Input('dropdown_datasource', 'value')
+)
+def dd_values(data_source):
+    if data_source is None:
+        div_sankey = html.H3('Please select a data source from the dropdown')
+        div_table = html.Div()
+    else:
+        if data_source == 'api':
+            selected_fig = sankey_fig_api
+            selected_table = build_datatable(redcap_df,'table_api')
+        else:
+            selected_fig = sankey_fig_csv
+            selected_table = build_datatable(sankey_data,'table_csv')
+        div_sankey = dcc.Graph(figure=selected_fig)
+        div_table = selected_table
+    return div_sankey, div_table
 
 # ----------------------------------------------------------------------------
 # RUN APPLICATION
