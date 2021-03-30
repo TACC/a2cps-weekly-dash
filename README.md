@@ -7,8 +7,7 @@ This dashboard is intended for use by study personnel and others interested in t
 | Version   | Date | Description |
 | ------ | ------ | ------ |
 | 0.0.1 | 03/23/2021 | Initial simple dashboard with plotly Sankey Diagram and Data Table. |
-
-
+| 0.0.2 | 03/30/2021 | Modify data to force live load of API data and display report date. |
 
 # Automatic Container Build information from parent repository.
 This repository was forked from the TACC dash-container[https://github.com/TACC/dash-container] repo.  
