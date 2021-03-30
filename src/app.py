@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import requests
 from datetime import date
+import json
 
 # Data visualization
 import plotly.express as px
@@ -68,14 +69,12 @@ export_style = '''
 
 
 # ----------------------------------------------------------------------------
-# DATA LOADING AND CLEANING
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-# API DATA
+# API DATA FUNCTIONS
 # ----------------------------------------------------------------------------
 
 ## FUNCTIONS FOR LOADING DATA: MOVE TO MODULE
 def load_api_data(api_url):
+    '''Get dictionary of sankey data if provided a valid API url'''
     response = requests.get(api_url)
     try:
         api_data = response.json()
@@ -83,7 +82,8 @@ def load_api_data(api_url):
         return False
     return api_data
 
-def get_consort_df(api_url):
+def get_api_df(api_data):
+    ''' Take a dictionary of data balues and return a dataframe with source, target and value columns to build sankey '''
     if load_api_data(api_url):
         api_data = load_api_data(api_url)
         df = pd.DataFrame.from_dict(api_data)
@@ -92,51 +92,66 @@ def get_consort_df(api_url):
         df = pd.DataFrame(columns = cosort_columns)
     return df
 
+def get_sankey_nodes(dataframe,source_col = 'source', target_col = 'target'):
+    ''' Extract node infomration from sankey dataframe in case this is not provided '''
+    nodes = pd.DataFrame(list(dataframe[source_col].unique()) + list(dataframe[target_col].unique())).drop_duplicates().reset_index(drop=True)
+    nodes.reset_index(inplace=True)
+    nodes.columns = ['NodeID','Node']
+    return nodes
 
-# Load API data
+def get_sankey_dataframe (data_dataframe,
+                          node_id_col = 'NodeID', node_name_col = 'Node',
+                          source_col = 'source', target_col = 'target', value_col = 'value'):
+    ''' Merge Node dataframes with data dataframe to create dataframe properly formatted for Sankey diagram.
+        This means each source and target gets assigned the Index value from the nodes dataframe for the diagram.
+    '''
+    # get nodes from data
+    nodes = get_sankey_nodes(data_dataframe)
+
+    # Copy of Node data to merge on source
+    sources = nodes.copy()
+    sources.columns = ['sourceID','source']
+
+    # Copy of Node data to merge on target
+    targets = nodes.copy()
+    targets.columns = ['targetID','target']
+
+    # Merge the data dataframe with node information
+    sankey_dataframe = data_dataframe.merge(sources, on='source')
+    sankey_dataframe = sankey_dataframe.merge(targets, on='target')
+
+    return nodes, sankey_dataframe
+
+# ----------------------------------------------------------------------------
+# LOAD API DATA
+# ----------------------------------------------------------------------------
 api_url = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=consort'
-
-# time of date loading
-today = date.today()
-today_string = "This report generated on " + str(today)
-
-# Convert API Json --> pandas DataFrame
-redcap_df = get_consort_df(api_url)
-
-# Get df of Nodes present in API
-nodes = pd.DataFrame(list(redcap_df['source'].unique()) + list(redcap_df['target'].unique())).drop_duplicates().reset_index(drop=True)
-nodes.reset_index(inplace=True)
-nodes.columns = ['NodeID','Node']
-
-# Merge data frames to create sankey dataframe
-sources = nodes.copy()
-sources.columns = ['sourceID','source']
-targets = nodes.copy()
-targets.columns = ['targetID','target']
-sankey_df = redcap_df.merge(sources, on='source')
-sankey_df = sankey_df.merge(targets, on='target')
+redcap_df = get_api_df(api_url) # Convert API Json --> pandas DataFrame
+nodes, sankey_df = get_sankey_dataframe(redcap_df)
 
 # ----------------------------------------------------------------------------
 # DATA VISUALIZATION
 # ----------------------------------------------------------------------------
 
-sankey_fig_api = go.Figure(data=[go.Sankey(
-    # Define nodes
-    node = dict(
-      pad = 15,
-      thickness = 20,
-      line = dict(color = "black", width = .5),
-      label =  nodes['Node'],
-       # color =  "red"
-    ),
-    # Add links
-    link = dict(
-      source =  sankey_df['sourceID'],
-      target =  sankey_df['targetID'],
-      value =  sankey_df['value'],
-      ),
-    # orientation = 'v'
-)])
+def build_sankey(nodes_dataframe, data_dataframe):
+    sankey_fig = go.Figure(data=[go.Sankey(
+        # Define nodes
+        node = dict(
+          pad = 15,
+          thickness = 20,
+          line = dict(color = "black", width = .5),
+          label =  nodes_dataframe['Node'],
+           # color =  "red"
+        ),
+        # Add links
+        link = dict(
+          source =  data_dataframe['sourceID'],
+          target =  data_dataframe['targetID'],
+          value =  data_dataframe['value'],
+          ),
+        # orientation = 'v'
+    )])
+    return sankey_fig
 
 
 # ----------------------------------------------------------------------------
@@ -168,7 +183,25 @@ def build_datatable(data_source, table_id):
         )
     return new_datatable
 
-
+def build_dash_content(str_date, sankey_fig, data_frame): # build_sankey(nodes, sankey_df) build_datatable(redcap_df,'table_csv') redcap_df
+    dash_content = [
+        dbc.Row([
+            dbc.Col([
+                html.Div(str_date),
+            ],md = 8, lg=10),
+        ]),
+        dbc.Row([
+            dbc.Col([
+                html.Div([dcc.Graph(figure=sankey_fig)],id='div_sankey'),
+            ],xl=6),
+        # ]),
+        # dbc.Row([
+            dbc.Col([
+                html.Div([build_datatable(data_frame,'table_csv')],id='div_table'),
+            ],xl=6)
+        ])
+    ]
+    return dash_content
 # ----------------------------------------------------------------------------
 # DASH APP LAYOUT
 # ----------------------------------------------------------------------------
@@ -182,10 +215,10 @@ app = dash.Dash(__name__,
                 )
 
 app.layout = html.Div([
+    dcc.Store(id='store_api'),
     dbc.Row([
         dbc.Col([
             html.H1('CONSORT Report'),
-            html.P(today_string),
         ],md = 8, lg=10),
         dbc.Col([
             dcc.Dropdown(
@@ -199,43 +232,25 @@ app.layout = html.Div([
             ),
         ],id='dd_datasource',md=4, lg=2)
     ]),
-
-
-    dbc.Row([
-        dbc.Col([
-            html.Div([dcc.Graph(figure=sankey_fig_api)],id='div_sankey'),
-        ],xl=6),
-    # ]),
-    # dbc.Row([
-        dbc.Col([
-            html.Div([build_datatable(redcap_df,'table_csv')],id='div_table'),
-        ],xl=6)
-    ])
-
+    html.Div(id = 'dash_content')
 ], style =CONTENT_STYLE)
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
 
 @app.callback(
-    Output('div_sankey','children'),
-    Output('div_table','children'),
+    Output('dash_content','children'),
     Input('dropdown_datasource', 'value')
 )
 def dd_values(data_source):
-    if data_source is None:
-        div_sankey = html.H3('Please select a data source from the dropdown')
-        div_table = html.Div()
-    else:
-        if data_source == 'api':
-            selected_fig = sankey_fig_api
-            selected_table = build_datatable(redcap_df,'table_api')
-        else:
-            selected_fig = sankey_fig_csv
-            selected_table = build_datatable(sankey_data,'table_csv')
-        div_sankey = dcc.Graph(figure=selected_fig)
-        div_table = selected_table
-    return div_sankey, div_table
+    # time of date loading
+    today = date.today()
+    today_string = "This report generated on " + str(today)
+
+    # create page content
+    dash_content = build_dash_content(today_string, build_sankey(nodes, sankey_df),redcap_df)
+
+    return dash_content 
 
 # ----------------------------------------------------------------------------
 # RUN APPLICATION
