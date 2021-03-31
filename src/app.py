@@ -10,7 +10,7 @@ import pathlib # file paths
 import pandas as pd
 import numpy as np
 import requests
-from datetime import date
+from datetime import datetime
 import json
 
 # Data visualization
@@ -23,6 +23,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 import dash_table as dt
+import dash_daq as daq
 from dash.dependencies import Input, Output, State, ALL, MATCH
 
 # ----------------------------------------------------------------------------
@@ -130,8 +131,7 @@ def get_sankey_dataframe (data_dataframe,
 # LOAD API DATA
 # ----------------------------------------------------------------------------
 api_url = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=consort'
-redcap_df = get_api_df(api_url) # Convert API Json --> pandas DataFrame
-nodes, sankey_df = get_sankey_dataframe(redcap_df)
+
 
 # ----------------------------------------------------------------------------
 # DATA VISUALIZATION
@@ -197,12 +197,12 @@ def build_dash_content(str_date, sankey_fig, data_frame): # build_sankey(nodes, 
         dbc.Row([
             dbc.Col([
                 html.Div([dcc.Graph(figure=sankey_fig)],id='div_sankey'),
-            ],xl=6),
+            ],width=12),
         # ]),
         # dbc.Row([
             dbc.Col([
                 html.Div([build_datatable(data_frame,'table_csv')],id='div_table'),
-            ],xl=6)
+            ], width=12)
         ])
     ]
     return dash_content
@@ -250,11 +250,14 @@ app.layout = html.Div([
 )
 def dd_values(data_source):
     # time of date loading
-    today = date.today()
-    today_string = "This report generated on " + str(today)
-
+    now = datetime.now()
+    date_string = now.strftime("%m/%d/%Y")
+    time_string = now.strftime("%H:%M")
+    msg_string = "This report generated on " + str(date_string) + " at " + str(time_string)
+    redcap_df = get_api_df(api_url) # load API Json and convert --> pandas DataFrame
+    nodes, sankey_df = get_sankey_dataframe(redcap_df)
     # create page content
-    dash_content = build_dash_content(today_string, build_sankey(nodes, sankey_df),redcap_df)
+    dash_content = build_dash_content(msg_string, build_sankey(nodes, sankey_df),redcap_df)
 
     return dash_content
 
