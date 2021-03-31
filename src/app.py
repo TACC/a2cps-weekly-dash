@@ -36,9 +36,13 @@ REQUESTS_PATHNAME_PREFIX = os.environ.get("REQUESTS_PATHNAME_PREFIX", "/")
 # STYLING
 # ----------------------------------------------------------------------------
 
+TACC_IFRAME_SIZE = {
+    "max-width" : "1060px", "max-height" : "980px" # THESE ARE SET TO FIT IN THE 1080x1000 TACC iFRAME.  CAN BE REMOVED IF THOSE CONSTRAINTS COME OFF
+}
+
 CONTENT_STYLE = {
     "padding": "2rem 1rem",
-    "font-family": 'Arial, Helvetica, sans-serif'
+    "font-family": 'Arial, Helvetica, sans-serif',
 }
 
 export_style = '''
@@ -215,25 +219,27 @@ app = dash.Dash(__name__,
                 )
 
 app.layout = html.Div([
-    dcc.Store(id='store_api'),
-    dbc.Row([
-        dbc.Col([
-            html.H1('CONSORT Report'),
-        ],md = 8, lg=10),
-        dbc.Col([
-            dcc.Dropdown(
-                id='dropdown_datasource',
-                options=[
-                    {'label': 'Live Data', 'value': 'api'},
-                    # {'label': 'Historical Data', 'value': 'csv'},
-                ],
-                value='api',
-                style={'display': 'none'} # Remove this when historical data is ready to go
-            ),
-        ],id='dd_datasource',md=4, lg=2)
-    ]),
-    html.Div(id = 'dash_content')
-], style =CONTENT_STYLE)
+    html.Div([
+        dcc.Store(id='store_api'),
+        dbc.Row([
+            dbc.Col([
+                html.H1('CONSORT Report'),
+            ],md = 8, lg=10),
+            dbc.Col([
+                dcc.Dropdown(
+                    id='dropdown_datasource',
+                    options=[
+                        {'label': 'Live Data', 'value': 'api'},
+                        # {'label': 'Historical Data', 'value': 'csv'},
+                    ],
+                    value='api',
+                    style={'display': 'none'} # Remove this when historical data is ready to go
+                ),
+            ],id='dd_datasource',md=4, lg=2)
+        ]),
+        html.Div(id = 'dash_content')
+    ], style =CONTENT_STYLE)
+],style=TACC_IFRAME_SIZE)
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
@@ -250,7 +256,7 @@ def dd_values(data_source):
     # create page content
     dash_content = build_dash_content(today_string, build_sankey(nodes, sankey_df),redcap_df)
 
-    return dash_content 
+    return dash_content
 
 # ----------------------------------------------------------------------------
 # RUN APPLICATION
