@@ -61,6 +61,7 @@ def get_django_user():
         )
         return response.json()
     except Exception as e:
+        print(e)
         return None
 
 # ----------------------------------------------------------------------------
