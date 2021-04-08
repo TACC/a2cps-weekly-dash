@@ -11,6 +11,17 @@ This dashboard is intended for use by study personnel and others interested in t
 | 0.0.1 | 03/23/2021 | Initial simple dashboard with plotly Sankey Diagram and Data Table. |
 
 
+# Development Previews
+
+Development previews are built upon commits to the master branch. If you wish to preview the latest
+build, you may use the `docker-compose.yml` file. On your local machine with Docker, run:
+
+```
+docker-compose up --force-recreate
+```
+
+Then browse to `localhost:8050` in your web browser.
+
 # Automatic Container Build information from parent repository.
 This repository was forked from the TACC dash-container[https://github.com/TACC/dash-container] repo.  
 

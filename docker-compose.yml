@@ -1,0 +1,10 @@
+# This compose file is useful for testing https.
+# The .env file sets ENVVARS for the Docker CLI used by this compose file.
+---
+version: "3"
+services:
+  a2cps_sankey_dash:
+    image: wmatacc/a2cps-sankey-dash:latest
+    ports:
+      - 8050:8050
+    container_name: a2cps_sankey_dash
