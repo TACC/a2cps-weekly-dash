@@ -44,12 +44,15 @@ def get_django_user():
     from Django
     """
     DJANGO_LOGIN_HOST = os.environ.get("DJANGO_LOGIN_HOST", None)
+    SESSIONS_API_KEY = os.environ.get("SESSIONS_API_KEY", None)
     try:
         if not DJANGO_LOGIN_HOST:
             return True
         session_id = request.cookies.get('sessionid')
         if not session_id:
             raise Exception("sessionid cookie is missing")
+        if not SESSIONS_API_KEY:
+            raise Exception("SESSIONS_API_KEY not configured")
         api = "{django_login_host}/api/sessions_api/".format(
             django_login_host=DJANGO_LOGIN_HOST
         )
