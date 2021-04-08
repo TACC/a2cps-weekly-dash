@@ -24,6 +24,7 @@ import dash_html_components as html
 import dash_bootstrap_components as dbc
 import dash_table as dt
 import dash_daq as daq
+from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State, ALL, MATCH
 
 # ----------------------------------------------------------------------------
@@ -32,6 +33,35 @@ from dash.dependencies import Input, Output, State, ALL, MATCH
 DATA_PATH = pathlib.Path(__file__).parent.joinpath("data")
 ASSETS_PATH = pathlib.Path(__file__).parent.joinpath("assets")
 REQUESTS_PATHNAME_PREFIX = os.environ.get("REQUESTS_PATHNAME_PREFIX", "/")
+
+# ----------------------------------------------------------------------------
+# SECURITY FUNCTION
+# ----------------------------------------------------------------------------
+def get_django_user():
+    """
+    Utility function to retrieve logged in username
+    from Django
+    """
+    DJANGO_LOGIN_HOST = os.environ.get("DJANGO_LOGIN_HOST", None)
+    try:
+        if not DJANGO_LOGIN_HOST:
+            return True
+        session_id = request.cookies.get('sessionid')
+        if not session_id:
+            raise Exception("sessionid cookie is missing")
+        api = "{django_login_host}/api/sessions_api/".format(
+            django_login_host=DJANGO_LOGIN_HOST
+        )
+        response = requests.get(
+            api, 
+            params={
+                "session_key": session_id,
+                "sessions_api_key": SESSIONS_API_KEY
+            }
+        )
+        return response.json()
+    except Exception as e:
+        return None
 
 # ----------------------------------------------------------------------------
 # STYLING
@@ -234,45 +264,51 @@ app = dash.Dash(__name__,
                 requests_pathname_prefix=REQUESTS_PATHNAME_PREFIX,
                 )
 
-app.layout = html.Div([
-    html.Div([
-        dcc.Store(id='store_historical'),
-        html.Div(['version: 040721 17:15'],id="version",style={'display':'none'}),
-        html.Div(id='div_test'),
-        dbc.Row([
-            dbc.Col([
-                html.H1('CONSORT Report'),
-            ],md = 9),
-            dbc.Col([
-                daq.ToggleSwitch(
-                    id='toggle-datasource',
-                    label=['Live','Historical'],
-                    value=False
-                ),
-            ],id='dd_datasource',md=3)
-        ]),
-        dbc.Row([
-            dbc.Col([
-                html.Div(id="report_msg"),
-            ],md = 9),
-            dbc.Col([
-                html.Div([dcc.Dropdown(id="dropdown_dates")],id="div_dropdown_dates"),
-            ],md = 3),
-        ]),
-        dcc.Loading(
-            id="loading-1",
-            type="default",
-            children=html.Div(id="loading-output-1")
-        ),
-        dcc.Loading(
-            id="loading-2",
-            type="default",
-            children=html.Div(id="loading-output-2")
-        ),
-        html.Div(id = 'dash_content'),
+def get_layout():
+    if not get_django_user():
+        return html.H1("Unauthorized")
+    return html.Div([
+        html.Div([
+            dcc.Store(id='store_historical'),
+            html.Div(['version: 040721 17:15'],id="version",style={'display':'none'}),
+            html.Div(id='div_test'),
+            dbc.Row([
+                dbc.Col([
+                    html.H1('CONSORT Report'),
+                ],md = 9),
+                dbc.Col([
+                    daq.ToggleSwitch(
+                        id='toggle-datasource',
+                        label=['Live','Historical'],
+                        value=False
+                    ),
+                ],id='dd_datasource',md=3)
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    html.Div(id="report_msg"),
+                ],md = 9),
+                dbc.Col([
+                    html.Div([dcc.Dropdown(id="dropdown_dates")],id="div_dropdown_dates"),
+                ],md = 3),
+            ]),
+            dcc.Loading(
+                id="loading-1",
+                type="default",
+                children=html.Div(id="loading-output-1")
+            ),
+            dcc.Loading(
+                id="loading-2",
+                type="default",
+                children=html.Div(id="loading-output-2")
+            ),
+            html.Div(id = 'dash_content'),
 
-    ], style =CONTENT_STYLE)
-],style=TACC_IFRAME_SIZE)
+        ], style =CONTENT_STYLE)
+    ],style=TACC_IFRAME_SIZE)
+
+app.layout = get_layout
+
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
@@ -289,6 +325,8 @@ app.layout = html.Div([
     State('store_historical','data')
 )
 def dd_values(data_source, data_state):
+    if not get_django_user():
+        raise PreventUpdate
     # time of date loading
     now = datetime.now().astimezone()
     date_string = now.strftime("%m/%d/%Y %H:%M %z")
@@ -320,6 +358,8 @@ def dd_values(data_source, data_state):
     Output('dropdown_dates', 'value'),
     [Input('dropdown_dates', 'options')])
 def set_dropdown_dates_value(available_options):
+    if not get_django_user():
+        raise PreventUpdate
     return available_options[0]['value']
 
 @app.callback(
@@ -330,6 +370,8 @@ def set_dropdown_dates_value(available_options):
     State('store_historical','data')
 )
 def dd_values(dropdown, toggle, historical_data):
+    if not get_django_user():
+        raise PreventUpdate
     df = pd.DataFrame()
 
     if not toggle: # live data from api
