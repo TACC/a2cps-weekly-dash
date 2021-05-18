@@ -199,6 +199,7 @@ tab3 = html.Div([
     ]),
 ])
 
+
 tab4 = html.Div([
     html.Div([
         html.H5('Table 9. Demographic Characteristics'),
