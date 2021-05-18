@@ -108,93 +108,11 @@ export_style = '''
 # API DATA FUNCTIONS
 # ----------------------------------------------------------------------------
 
-## FUNCTIONS FOR LOADING DATA: MOVE TO MODULE
-def load_api_data(api_url):
-    '''Get dictionary of sankey data if provided a valid API url'''
-    try:
-        response = requests.get(api_url)
-        api_data = response.json()
-    except:
-        return False
-    return api_data
-
-
 
 # ----------------------------------------------------------------------------
 # DATA Loading and Cleaning
 # ----------------------------------------------------------------------------
 weekly_csv = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=weekly' # Production
-df = pd.read_csv(weekly_csv)
-
-# convert date columns from object --> datetime datatypes
-df['date_of_contact'] =  pd.to_datetime(df['date_of_contact'])
-df['date_and_time'] =  pd.to_datetime(df['date_and_time'])
-df['ewdateterm'] =  pd.to_datetime(df['ewdateterm'])
-
-# data subset of consented patients
-consented = df[df.consent_process_form_complete == 2].copy()
-
-# cutoff date 1 week before report
-today = datetime.now()
-end_report = today # ** CAN CHANGE THIS TO GET PAST REPORTS
-cutoff_report_range_days = 7
-cutoff_date = end_report - timedelta(days=cutoff_report_range_days)
-
-# ----------------------------------------------------------------------------
-# TABLE 1
-# ----------------------------------------------------------------------------
-
-# Define needed columns for this table and select subset from main dataframe
-t1_cols = ['redcap_data_access_group','participation_interest','screening_id']
-t1 = df[t1_cols]
-
-# drop missing data rows
-t1 = t1.dropna()
-
-# group by center and participation interest value and count number of IDs in each group
-t1 = t1.groupby(by=["redcap_data_access_group",'participation_interest']).count()
-
-# Reset data frame index to get dataframe in standard form with center, participation interest flag, count
-t1 = t1.reset_index()
-
-# Pivot participation interest values into separate columns
-t1 = t1.pivot(index='redcap_data_access_group', columns='participation_interest', values='screening_id')
-
-# Rename columns from numerical value to text description
-t1 = t1.rename(columns={0.0: "No", 1.0: "Maybe", 2.0: 'Yes'})
-
-# Reset Index so center is a column
-t1 = t1.reset_index()
-
-# remove index name
-t1.columns.name = None
-
-# Create Summary row ('All Sites') and Summary column ('All Participants')
-t1_sum = t1
-t1_sum.loc['All Sites']= t1_sum.sum(numeric_only=True, axis=0)
-t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
-
-# ----------------------------------------------------------------------------
-# TABLE 2
-# ----------------------------------------------------------------------------
-# Get decline columns from dataframe where participant was not interested (participation_interest == 0)
-t2_cols = ['screening_id','redcap_data_access_group','reason_not_interested'] # cols to select
-t2 = df[df.participation_interest == 0][t2_cols]
-
-# group data by center and count the # of screening_ids
-t2_site_count = pd.DataFrame(t2.groupby('redcap_data_access_group')['screening_id'].size())
-
-# rename aggregate column
-t2_site_count.columns = ['Total Declined']
-
-# reset table index to turn center from index --> column
-t2_site_count = t2_site_count.reset_index()
-
-# ----------------------------------------------------------------------------
-# TABLE 3
-# ----------------------------------------------------------------------------
-
-
 
 
 # ----------------------------------------------------------------------------
@@ -241,14 +159,15 @@ app = dash.Dash(__name__,
 
 app.layout = html.Div([
     html.Div([
+        html.H2(['A2CPS Weekly Report']),
         html.Div([
-            html.H3('Table 1'),
-            build_datatable(t1_sum, 'table_1'),
+            html.H3('Tables to come'),
+            # build_datatable(t1_sum, 'table_1'),
         ]),
-        html.Div([
-            html.H3('Table 2'),
-            build_datatable(t2_site_count, 'table_2'),
-        ]),
+        # html.Div([
+        #     html.H3('Table 2'),
+        #     build_datatable(t2_site_count, 'table_2'),
+        # ]),
     ]
     , style =CONTENT_STYLE)
 ],style=TACC_IFRAME_SIZE)
