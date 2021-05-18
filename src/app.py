@@ -146,6 +146,18 @@ def build_datatable(data_source, table_id):
     return new_datatable
 
 # ----------------------------------------------------------------------------
+# TABS
+# ----------------------------------------------------------------------------
+
+tab1 = html.Div('Screening Tables')
+
+tab2 = html.Div('Study Status Tables')
+
+tab3 = html.Div('Deviations & Adverse Events Tables')
+
+tab4 = html.Div('Demographics Tables')
+
+# ----------------------------------------------------------------------------
 # DASH APP LAYOUT
 # ----------------------------------------------------------------------------
 external_stylesheets_list = [dbc.themes.SANDSTONE] #  set any external stylesheets
@@ -160,10 +172,13 @@ app = dash.Dash(__name__,
 app.layout = html.Div([
     html.Div([
         html.H2(['A2CPS Weekly Report']),
-        html.Div([
-            html.H3('Tables to come'),
-            # build_datatable(t1_sum, 'table_1'),
+        dcc.Tabs(id='tabs_tables', value='tab-1', children=[
+            dcc.Tab(label='Screening', value='tab-1'),
+            dcc.Tab(label='Study Status', value='tab-2'),
+            dcc.Tab(label='Deviations & Adverse Events', value='tab-3'),
+            dcc.Tab(label='Demographics', value='tab-4'),
         ]),
+        html.Div(id='tabs_tables-content'),
         # html.Div([
         #     html.H3('Table 2'),
         #     build_datatable(t2_site_count, 'table_2'),
@@ -174,6 +189,21 @@ app.layout = html.Div([
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
+
+@app.callback(Output('tabs_tables-content', 'children'),
+              Input('tabs_tables', 'value'))
+def render_content(tab):
+    if tab == 'tab-1':
+        return tab1
+    elif tab == 'tab-2':
+        return tab2
+    elif tab == 'tab-3':
+        return tab3
+    elif tab == 'tab-4':
+        return tab4
+    else:
+        return html.Div('please select a tab')
+
 
 
 # ----------------------------------------------------------------------------
