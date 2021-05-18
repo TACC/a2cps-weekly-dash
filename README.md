@@ -62,5 +62,5 @@ autobuilds images at `jchuahtacc/dash-container`, so that is the value that is u
 
 ### Test it out
 
-Upon pull requests, pushes to main and pushes to main, you will see the workflows perform autobuilds. You can
+Upon pull requests and pushes to main, you will see the workflows perform autobuilds. You can
 view the Action results by going to the **Actions** tag of your repo. You can also go to your [Dockerhub](https://hub.docker.com) page and make sure images are properly getting tagged and pushed
