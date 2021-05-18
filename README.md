@@ -1,15 +1,18 @@
-# Visualization of Patient flow data for A2CPS
-Docker container of Dash App to display A2CPS trial consort information.
+# Weekly Reporting metrics for the A2CPS program
+Docker container of Dash App to display A2CPS trial weekly reporting metrics.
 
 This dashboard is intended for use by study personnel and others interested in the reasons why patients either complete or leave the trial.
 
 ## Version History
 | Version   | Date | Description |
 | ------ | ------ | ------ |
-| 0.0.3 | 04/07/2021 | Add functionality for historical data. |
-| 0.0.2 | 03/30/2021 | Modify data to force live load of API data and display report date. |
-| 0.0.1 | 03/23/2021 | Initial simple dashboard with plotly Sankey Diagram and Data Table. |
+| 0.0.1 | 05/18/2021 | Initial dashboard with portions of the data loaded into tables. |
 
+## Dashboard Description
+
+Data from the A2CPS program is loaded via apis that provide information on both all screened patients and those who continue into the program.
+
+This data is cleaned and transformed to create the tables as outlined in the Weekly Report document on Confluence.
 
 # Development Previews
 
