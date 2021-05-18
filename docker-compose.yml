@@ -3,8 +3,8 @@
 ---
 version: "3"
 services:
-  a2cps_sankey_dash:
-    image: wmatacc/a2cps-sankey-dash:latest
+  a2cps_weekly_dash:
+    image: wmatacc/a2cps-weekly-dash:latest
     ports:
       - 8050:8050
-    container_name: a2cps_sankey_dash
+    container_name: a2cps_weekly_dash
