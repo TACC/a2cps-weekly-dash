@@ -149,13 +149,62 @@ def build_datatable(data_source, table_id):
 # TABS
 # ----------------------------------------------------------------------------
 
-tab1 = html.Div('Screening Tables')
+tab1 = html.Div([
+    html.Div([
+        html.H5('Table 1. Number of Subjects Screened'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+    ]),
+    html.Div([
+        html.H5('Table 2. Reasons for declining'),
+        html.H6('Table 2.a. Reasons for declining by Site'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+        html.H6('Table 2.b. Reasons for declining ‘Additional Comments’'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+    ]),
+    html.Div([
+        html.H5('Table 3. Number of Subjects Consented'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+    ]),
+])
 
-tab2 = html.Div('Study Status Tables')
+tab2 = html.Div([
+    html.Div([
+        html.H5('Table 4. Ongoing Study Status'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+    ]),
+    html.Div([
+        html.H5('Table 5. Rescinded Consent'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+    ]),
+    html.Div([
+        html.H5('Table 6. Early Study Termination Listing'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+    ]),
+])
 
-tab3 = html.Div('Deviations & Adverse Events Tables')
+tab3 = html.Div([
+    html.Div([
+        html.H5('Table 7. Protocol Deviations'),
+        html.H6('Table 7.a. Protocol Deviations'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+        html.H6('Table 7.b. Description of Protocol Deviations'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+    ]),
+    html.Div([
+        html.H5('Table 8. Adverse Events'),
+        html.H6('Table 8.a. Adverse Events'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+        html.H6('Table 8.b. Description of Adverse Events'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+    ]),
+])
 
-tab4 = html.Div('Demographics Tables')
+tab4 = html.Div([
+    html.Div([
+        html.H5('Table 9. Demographic Characteristics'),
+        # html.Div(build_datatable(t2_site_count, 'table_2')),
+    ]),
+])
 
 # ----------------------------------------------------------------------------
 # DASH APP LAYOUT
