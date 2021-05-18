@@ -23,7 +23,7 @@ docker-compose up --force-recreate
 Then browse to `localhost:8050` in your web browser.
 
 # Automatic Container Build information from parent repository.
-This repository was forked from the TACC dash-container[https://github.com/TACC/dash-container] repo.  
+This repository was forked from the TACC [dash-container](https://github.com/TACC/dash-container) repo.  
 
 ## Configuring your repository for automatic container builds (text from original repo)
 
