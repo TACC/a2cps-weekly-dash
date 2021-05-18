@@ -10,12 +10,10 @@ import pathlib # file paths
 import pandas as pd
 import numpy as np
 import requests
-from datetime import datetime
-import json
+from datetime import datetime, timedelta
 
-# Data visualization
-import plotly.express as px
-import plotly.graph_objects as go
+# import local modules
+import data_processing as dp
 
 # Dash Framework
 import dash
@@ -24,8 +22,6 @@ import dash_html_components as html
 import dash_bootstrap_components as dbc
 import dash_table as dt
 import dash_daq as daq
-from flask import request
-from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State, ALL, MATCH
 
 # ----------------------------------------------------------------------------
@@ -57,7 +53,7 @@ def get_django_user():
             django_login_host=DJANGO_LOGIN_HOST
         )
         response = requests.get(
-            api, 
+            api,
             params={
                 "session_key": session_id,
                 "sessions_api_key": SESSIONS_API_KEY
@@ -122,91 +118,83 @@ def load_api_data(api_url):
         return False
     return api_data
 
-def get_api_df(api_data):
-    ''' Take a dictionary of data balues and return a dataframe with source, target and value columns to build sankey '''
-    if load_api_data(api_url):
-        api_data = load_api_data(api_url)
-        df = pd.DataFrame.from_dict(api_data)
-    else:
-        cosort_columns = ['source','target','value']
-        df = pd.DataFrame(columns = cosort_columns)
-    return df
 
-def get_sankey_nodes(dataframe,source_col = 'source', target_col = 'target'):
-    ''' Extract node infomration from sankey dataframe in case this is not provided '''
-    nodes = pd.DataFrame(list(dataframe[source_col].unique()) + list(dataframe[target_col].unique())).drop_duplicates().reset_index(drop=True)
-    nodes.reset_index(inplace=True)
-    nodes.columns = ['NodeID','Node']
-    return nodes
-
-def get_sankey_dataframe (data_dataframe,
-                          node_id_col = 'NodeID', node_name_col = 'Node',
-                          source_col = 'source', target_col = 'target', value_col = 'value'):
-    ''' Merge Node dataframes with data dataframe to create dataframe properly formatted for Sankey diagram.
-        This means each source and target gets assigned the Index value from the nodes dataframe for the diagram.
-    '''
-    # get nodes from data
-    nodes = get_sankey_nodes(data_dataframe)
-
-    # Copy of Node data to merge on source
-    sources = nodes.copy()
-    sources.columns = ['sourceID','source']
-
-    # Copy of Node data to merge on target
-    targets = nodes.copy()
-    targets.columns = ['targetID','target']
-
-    # Merge the data dataframe with node information
-    sankey_dataframe = data_dataframe.merge(sources, on='source')
-    sankey_dataframe = sankey_dataframe.merge(targets, on='target')
-
-    return nodes, sankey_dataframe
-
-def load_historical_data(csv_url):
-    '''Load csv of historical dates and extract unique dates for dropdown options'''
-    try :
-        # Data Frame
-        historical_data = pd.read_csv(csv_url, header = None)
-        historical_data.columns=['source','target','value','date']
-        historical_data['date_time'] = historical_data['date'].apply(lambda x: pd.Timestamp(x).strftime('%Y-%m-%d (%H:%M)'))
-
-    except :
-        historical_data = 'Could not access data'
-
-    return historical_data
 
 # ----------------------------------------------------------------------------
-# DATA urls
+# DATA Loading and Cleaning
 # ----------------------------------------------------------------------------
-# URL of live API data
-api_url = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=consort'
+weekly_csv = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=weekly' # Production
+df = pd.read_csv(weekly_csv)
 
-# URL of csv of historical dataframe
-csv_url = 'https://portals-api.tacc.utexas.edu/files/v2/download/wma_prtl/system/a2cps.storage.public/reports/consort/consort-data-all.csv'
+# convert date columns from object --> datetime datatypes
+df['date_of_contact'] =  pd.to_datetime(df['date_of_contact'])
+df['date_and_time'] =  pd.to_datetime(df['date_and_time'])
+df['ewdateterm'] =  pd.to_datetime(df['ewdateterm'])
+
+# data subset of consented patients
+consented = df[df.consent_process_form_complete == 2].copy()
+
+# cutoff date 1 week before report
+today = datetime.now()
+end_report = today # ** CAN CHANGE THIS TO GET PAST REPORTS
+cutoff_report_range_days = 7
+cutoff_date = end_report - timedelta(days=cutoff_report_range_days)
 
 # ----------------------------------------------------------------------------
-# DATA VISUALIZATION
+# TABLE 1
 # ----------------------------------------------------------------------------
 
-def build_sankey(nodes_dataframe, data_dataframe):
-    sankey_fig = go.Figure(data=[go.Sankey(
-        # Define nodes
-        node = dict(
-          pad = 15,
-          thickness = 20,
-          line = dict(color = "black", width = .5),
-          label =  nodes_dataframe['Node'],
-           # color =  "red"
-        ),
-        # Add links
-        link = dict(
-          source =  data_dataframe['sourceID'],
-          target =  data_dataframe['targetID'],
-          value =  data_dataframe['value'],
-          ),
-        # orientation = 'v'
-    )])
-    return sankey_fig
+# Define needed columns for this table and select subset from main dataframe
+t1_cols = ['redcap_data_access_group','participation_interest','screening_id']
+t1 = df[t1_cols]
+
+# drop missing data rows
+t1 = t1.dropna()
+
+# group by center and participation interest value and count number of IDs in each group
+t1 = t1.groupby(by=["redcap_data_access_group",'participation_interest']).count()
+
+# Reset data frame index to get dataframe in standard form with center, participation interest flag, count
+t1 = t1.reset_index()
+
+# Pivot participation interest values into separate columns
+t1 = t1.pivot(index='redcap_data_access_group', columns='participation_interest', values='screening_id')
+
+# Rename columns from numerical value to text description
+t1 = t1.rename(columns={0.0: "No", 1.0: "Maybe", 2.0: 'Yes'})
+
+# Reset Index so center is a column
+t1 = t1.reset_index()
+
+# remove index name
+t1.columns.name = None
+
+# Create Summary row ('All Sites') and Summary column ('All Participants')
+t1_sum = t1
+t1_sum.loc['All Sites']= t1_sum.sum(numeric_only=True, axis=0)
+t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
+
+# ----------------------------------------------------------------------------
+# TABLE 2
+# ----------------------------------------------------------------------------
+# Get decline columns from dataframe where participant was not interested (participation_interest == 0)
+t2_cols = ['screening_id','redcap_data_access_group','reason_not_interested'] # cols to select
+t2 = df[df.participation_interest == 0][t2_cols]
+
+# group data by center and count the # of screening_ids
+t2_site_count = pd.DataFrame(t2.groupby('redcap_data_access_group')['screening_id'].size())
+
+# rename aggregate column
+t2_site_count.columns = ['Total Declined']
+
+# reset table index to turn center from index --> column
+t2_site_count = t2_site_count.reset_index()
+
+# ----------------------------------------------------------------------------
+# TABLE 3
+# ----------------------------------------------------------------------------
+
+
 
 
 # ----------------------------------------------------------------------------
@@ -225,6 +213,7 @@ def build_datatable(data_source, table_id):
                 ],
             style_cell= {
                 'text-align':'left',
+                'font-family':'sans-serif',
                 'padding': '5px'
                 },
             style_as_list_view=True,
@@ -234,29 +223,10 @@ def build_datatable(data_source, table_id):
                 'color': 'white'
             },
 
-            export_format="csv",
+            # export_format="csv",
         )
     return new_datatable
 
-def build_dates_dropdown(type, options):
-    if type == 'api':
-        dates_dropdown = 'api'
-    else:
-        dates_dropdown = 'other'
-    return dates_dropdown
-
-def build_dash_content(chart, data_table): # build_sankey(nodes, sankey_df) build_datatable(redcap_df,'table_csv') redcap_df
-    dash_content = [
-        dbc.Row([
-            dbc.Col([
-                html.Div(chart, id='div_sankey'),
-            ],width=12),
-            dbc.Col([
-                html.Div(data_table, id='div_table'),
-            ], width=12)
-        ])
-    ]
-    return dash_content
 # ----------------------------------------------------------------------------
 # DASH APP LAYOUT
 # ----------------------------------------------------------------------------
@@ -269,137 +239,23 @@ app = dash.Dash(__name__,
                 requests_pathname_prefix=REQUESTS_PATHNAME_PREFIX,
                 )
 
-def get_layout():
-    if not get_django_user():
-        return html.H1("Unauthorized")
-    return html.Div([
+app.layout = html.Div([
+    html.Div([
         html.Div([
-            dcc.Store(id='store_historical'),
-            html.Div(['version: 040721 17:15'],id="version",style={'display':'none'}),
-            html.Div(id='div_test'),
-            dbc.Row([
-                dbc.Col([
-                    html.H1('CONSORT Report'),
-                ],md = 9),
-                dbc.Col([
-                    daq.ToggleSwitch(
-                        id='toggle-datasource',
-                        label=['Live','Historical'],
-                        value=False
-                    ),
-                ],id='dd_datasource',md=3)
-            ]),
-            dbc.Row([
-                dbc.Col([
-                    html.Div(id="report_msg"),
-                ],md = 9),
-                dbc.Col([
-                    html.Div([dcc.Dropdown(id="dropdown_dates")],id="div_dropdown_dates"),
-                ],md = 3),
-            ]),
-            dcc.Loading(
-                id="loading-1",
-                type="default",
-                children=html.Div(id="loading-output-1")
-            ),
-            dcc.Loading(
-                id="loading-2",
-                type="default",
-                children=html.Div(id="loading-output-2")
-            ),
-            html.Div(id = 'dash_content'),
-
-        ], style =CONTENT_STYLE)
-    ],style=TACC_IFRAME_SIZE)
-
-app.layout = get_layout
-
+            html.H3('Table 1'),
+            build_datatable(t1_sum, 'table_1'),
+        ]),
+        html.Div([
+            html.H3('Table 2'),
+            build_datatable(t2_site_count, 'table_2'),
+        ]),
+    ]
+    , style =CONTENT_STYLE)
+],style=TACC_IFRAME_SIZE)
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
 
-# return data on toggle
-@app.callback(
-    Output("loading-output-1", "children"),
-    Output('store_historical','data'),
-    Output('report_msg','children'),
-    Output('dropdown_dates','options'),
-    Output('div_dropdown_dates','style'),
-    # Output('dash_content','children'),
-    Input('toggle-datasource', 'value'),
-    State('store_historical','data')
-)
-def dd_values(data_source, data_state):
-    if not get_django_user():
-        raise PreventUpdate
-    # time of date loading
-    now = datetime.now().astimezone()
-    date_string = now.strftime("%m/%d/%Y %H:%M %z")
-    msg_string = "Data last loaded at " + str(date_string) + "UTC"
-
-    hist_dict = data_state
-    dropdown_style = {}
-
-    if(data_source): # Load historical data if not yet loaded
-        if not data_state:
-            hist_dict = {}
-            hd = load_historical_data(csv_url) # load data from csv
-            dates = list(hd['date_time'].unique()) # list of unique dates in dataframe to supply dropdown options
-            dates.sort(reverse=True)
-            hist_dict['data'] = hd.to_dict('records') #store data in local data store
-            hist_dict['dates']  = dates
-
-        # set dropdown dropdown_options from dates
-        dropdown_options = [{'label': i, 'value': i} for i in hist_dict['dates']]
-
-    else: # load API Json and convert --> pandas DataFrame. Always do this live.
-        # Set date dropdown to API values
-        dropdown_options = [{'label': 'api', 'value': 'api'}]
-        dropdown_style = {'display':'none'}
-
-    return data_source, hist_dict, msg_string, dropdown_options, dropdown_style
-
-@app.callback(
-    Output('dropdown_dates', 'value'),
-    [Input('dropdown_dates', 'options')])
-def set_dropdown_dates_value(available_options):
-    if not get_django_user():
-        raise PreventUpdate
-    return available_options[0]['value']
-
-@app.callback(
-    Output("loading-output-2", "children"),
-    Output('dash_content','children'),
-    Input('dropdown_dates','value'),
-    State('toggle-datasource', 'value'),
-    State('store_historical','data')
-)
-def dd_values(dropdown, toggle, historical_data):
-    if not get_django_user():
-        raise PreventUpdate
-    df = pd.DataFrame()
-
-    if not toggle: # live data from api
-        df = get_api_df(api_url) # Get data from API
-        chart_title = 'CONSORT Report from live API data'
-
-    else: # historical data from csv loaded to data store
-        df = pd.DataFrame(historical_data['data'])
-        df = df[df['date_time'] == dropdown]
-        chart_title = 'CONSORT Report from historical archive on ' + dropdown
-
-    if not df.empty:
-        data_table = [build_datatable(df,'table_csv')] # Build data_table from api data
-        nodes, sankey_df = get_sankey_dataframe(df) # transform API data into sankey data
-        sankey_fig = build_sankey(nodes, sankey_df) # turn sankey data into sankey figure
-        sankey_fig.update_layout(title = chart_title)
-        chart = dcc.Graph(id="sankey_chart",figure=sankey_fig) # create dash component chart from figure
-        dash_content = build_dash_content(chart, data_table) # create page content from variables
-
-    else:
-        dash_content = html.Div('There has been an issue in loading data')
-
-    return toggle, dash_content
 
 # ----------------------------------------------------------------------------
 # RUN APPLICATION
