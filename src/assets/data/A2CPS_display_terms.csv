@@ -1,0 +1,46 @@
+﻿api_field,api_value,display_text
+redcap_data_access_group,rush_university_me,MCC1: Rush
+redcap_data_access_group,northshore,MCC1: NorthShore
+redcap_data_access_group,uchicago,MCC1: UChicago
+participation_interest,0,No
+participation_interest,1,Maybe
+participation_interest,2,Yes
+reason_not_interested,5,No specific reason
+reason_not_interested,4,Time-related issue or concern
+reason_not_interested,3,Specific study procedure
+reason_not_interested,2,Compensation insufficient
+reason_not_interested,1,COVID-related
+reason_not_interested,0,Not interested in research
+reason_not_interested,-1,Not provided
+erep_protdev_type,1,Informed Consent
+erep_protdev_type,2,Protocol Deviation-blood drawo
+erep_protdev_type,3,Protocol Deviation-functional testing
+erep_protdev_type,4,Protocol Deviation-QST
+erep_protdev_type,5,Protocol Deviation-imaging
+erep_protdev_type,6,Visit timeline (outside protocol range)
+erep_protdev_type,7,Other
+screening_race,6,American Indian or Alaska Native
+screening_race,5,Asian
+screening_race,4,Black/African American
+screening_race,3,Native Hawaiian or other Pacific Islander
+screening_race,2,White/Caucasian
+screening_race,1,Other
+screening_race,0,Prefer not to answer
+screening_ethnicity,2,Hispanic or Latino
+screening_ethnicity,1,Not Hispanic or Latino
+screening_ethnicity,0,Prefer not to answer
+ethnic,1,Hispanic or Latino
+ethnic,2,Not Hispanic or Latino
+ethnic,3,Unknown
+ethnic,4,Not reported
+dem_race,1,American Indian or Alaska Native
+dem_race,2,Asian
+dem_race,3,Black or African-American
+dem_race,4,Native Hawaiian or Pacific Islander
+dem_race,5,White
+dem_race,6,Unknown
+dem_race,7,Not Reported
+sex,1,Male
+sex,2,Female
+sex,3,Unknown
+sex,4,Intersex 
