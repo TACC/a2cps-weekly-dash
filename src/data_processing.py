@@ -57,20 +57,20 @@ def get_multi_row_data(json_api_url):
 # ----------------------------------------------------------------------------
 def get_table_1(df):
    # Define needed columns for this table and select subset from main dataframe
-    t1_cols = ['redcap_data_access_group','participation_interest_display','screening_id']
+    t1_cols = ['redcap_data_access_group_display','participation_interest_display','screening_id']
     t1 = df[t1_cols]
 
     # drop missing data rows
     t1 = t1.dropna()
 
     # group by center and participation interest value and count number of IDs in each group
-    t1 = t1.groupby(by=["redcap_data_access_group",'participation_interest_display']).count()
+    t1 = t1.groupby(by=["redcap_data_access_group_display",'participation_interest_display']).count()
 
     # Reset data frame index to get dataframe in standard form with center, participation interest flag, count
     t1 = t1.reset_index()
 
     # Pivot participation interest values into separate columns
-    t1 = t1.pivot(index=['redcap_data_access_group'], columns='participation_interest_display', values='screening_id')
+    t1 = t1.pivot(index=['redcap_data_access_group_display'], columns='participation_interest_display', values='screening_id')
 
     # Reset Index so center is a column
     t1 = t1.reset_index()
@@ -82,6 +82,11 @@ def get_table_1(df):
     t1_sum = t1
     t1_sum.loc['All Sites']= t1_sum.sum(numeric_only=True, axis=0)
     t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
+
+    # Rename and reorder columns for display
+    t1_sum = t1_sum.rename(columns = {'redcap_data_access_group_display':'Center Name'})
+    cols_display_order = ['Center Name', 'All Participants', 'Yes', 'Maybe', 'No']
+    t1_sum = t1_sum[cols_display_order]
 
     return t1_sum
 
@@ -125,15 +130,22 @@ def get_table_2a(df, display_terms_t2a):
     # Note: the reasons may add up to < than total declined because the data entry allowed for NA. also possible more because
     # patients could select more than one reason.
     t2_site_count_detailed = t2_site_count.merge(t2_reasons, on='redcap_data_access_group_display')
+    t2_site_count_detailed = t2_site_count_detailed.rename(columns = {'redcap_data_access_group_display':'Center Name'})
 
     return t2_site_count_detailed
 
 def get_table_2b(df, start_report, end_report):
     # Each decline includes a comment field - show these for the period of the report (previous 7 days)
-    decline_comments = df[df.participation_interest == 0][['redcap_data_access_group','date_of_contact','ptinterest_comment']].dropna()
+    decline_comments = df[df.participation_interest == 0][['redcap_data_access_group_display','date_of_contact','ptinterest_comment']].dropna()
 
     # Show Comments during reporting period
     decline_comments = decline_comments[(decline_comments.date_of_contact > start_report) & (decline_comments.date_of_contact <= end_report)]
+
+    # Rename and reorder columns for display
+    decline_comments = decline_comments.rename(columns = {'redcap_data_access_group_display':'Center Name','ptinterest_comment':'Reason' })
+    cols_display_order = ['Center Name', 'Reason']
+    decline_comments = decline_comments[cols_display_order]
+
     return decline_comments
 
 def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
@@ -150,7 +162,7 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     # Aggregate data for table 3
     # Set the columns to groupby, and the the columns to role up with desired aggregating functions
     # Note: can supply a list of aggregate functions to one columnm i.e. 'col_name': ['min','max']
-    cols_for_groupby = ["redcap_data_access_group"]
+    cols_for_groupby = ["redcap_data_access_group_display"]
     aggregate_columns_dict={'screening_id':'count',
                             'date_and_time':'max',
                              'eligible':'sum',
@@ -170,7 +182,26 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
 
     # Calculate the number of days since the last consent
     t3_aggregate['days_since_consent'] = end_report_date.date() - t3_aggregate['date_and_time_max'].dt.date
+
+    # Rename and reorder columns for display
+    t3_aggregate = t3_aggregate.reset_index()
+    consent_range_col_name = 'Consents in last ' + str(days_range) +' Days'
+    rename_dict = {'redcap_data_access_group_display':'Center Name',
+                    'id_count':'Consented',
+                    'days_since_consent':'Days Since Last Consent',
+                    'within_range_sum':consent_range_col_name,
+                   'eligible_sum':'Total Eligible',
+                   'ineligible':'Total ineligible',
+                   'ewdateterm_count': 'Total Rescinded'
+                  }
+    t3_aggregate = t3_aggregate.rename(columns = rename_dict)
+    cols_display_order = ['Center Name', 'Consented', 'Days Since Last Consent',consent_range_col_name,
+                          'Total Eligible', 'Total ineligible',  'Total Rescinded'
+       ]
+    t3_aggregate = t3_aggregate[cols_display_order]
+
     return t3, t3_aggregate
+
 
 # ----------------------------------------------------------------------------
 # Study Status Tables

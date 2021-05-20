@@ -185,16 +185,19 @@ def build_datatable(data_source, table_id):
                 ],
             style_cell= {
                 'text-align':'left',
+                'vertical-align': 'top',
                 'font-family':'sans-serif',
-                'padding': '5px'
+                'padding': '5px',
+                'whiteSpace': 'normal',
+                'height': 'auto',
                 },
             style_as_list_view=True,
             style_header={
                 'backgroundColor': 'grey',
                 'fontWeight': 'bold',
-                'color': 'white'
+                'color': 'white',
             },
-
+            style_table={'overflowX': 'auto'},
             # export_format="csv",
         )
     return new_datatable
@@ -204,61 +207,71 @@ def build_datatable(data_source, table_id):
 # ----------------------------------------------------------------------------
 
 tab1 = html.Div([
-    html.Div([
-        html.H5('Table 1. Number of Subjects Screened'),
-        html.Div(build_datatable(table1, 'table_1')),
-    ]),
-    html.Div([
-        html.H5('Table 2. Reasons for declining'),
-        html.H6('Table 2.a. Reasons for declining by Site'),
-        html.Div(build_datatable(table2a, 'table_2a')),
-        html.H6('Table 2.b. Reasons for declining ‘Additional Comments’'),
-        html.Div(build_datatable(table2b, 'table_2b')),
-    ]),
-    html.Div([
-        html.H5('Table 3. Number of Subjects Consented'),
-        html.Div(build_datatable(table3, 'table_3')),
-    ]),
+    dbc.Card(
+        dbc.CardBody([
+            html.H5('Table 1. Number of Subjects Screened', className="card-title"),
+            html.Div(build_datatable(table1, 'table_1')),
+        ]),
+    ),
+    dbc.Card(
+        dbc.CardBody([
+            html.H5('Table 2. Reasons for declining'),
+            html.H6('Table 2.a. Reasons for declining by Site'),
+            html.Div(build_datatable(table2a, 'table_2a')),
+        ]),
+    ),
+    dbc.Card(
+        dbc.CardBody([
+            html.H6('Table 2.b. Reasons for declining ‘Additional Comments’'),
+            html.Div(build_datatable(table2b, 'table_2b')),
+        ]),
+    ),
+    dbc.Card(
+        dbc.CardBody([
+            html.H5('Table 3. Number of Subjects Consented'),
+            html.Div(build_datatable(table3, 'table_3')),
+        ]),
+    ),
 ])
 
 tab2 = html.Div([
-    html.Div([
+    dbc.Card([
         html.H5('Table 4. Ongoing Study Status'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
-    ]),
-    html.Div([
+    ],body=True),
+    dbc.Card([
         html.H5('Table 5. Rescinded Consent'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
-    ]),
-    html.Div([
+    ],body=True),
+    dbc.Card([
         html.H5('Table 6. Early Study Termination Listing'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
-    ]),
+    ],body=True),
 ])
 
 tab3 = html.Div([
-    html.Div([
+    dbc.Card([
         html.H5('Table 7. Protocol Deviations'),
         html.H6('Table 7.a. Protocol Deviations'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
         html.H6('Table 7.b. Description of Protocol Deviations'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
-    ]),
-    html.Div([
+    ],body=True),
+    dbc.Card([
         html.H5('Table 8. Adverse Events'),
         html.H6('Table 8.a. Adverse Events'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
         html.H6('Table 8.b. Description of Adverse Events'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
-    ]),
+    ],body=True),
 ])
 
 
 tab4 = html.Div([
-    html.Div([
+    dbc.Card([
         html.H5('Table 9. Demographic Characteristics'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
-    ]),
+    ],body=True),
 ])
 
 # ----------------------------------------------------------------------------
