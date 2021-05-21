@@ -11,6 +11,7 @@ import json
 import pandas as pd
 import numpy as np
 import requests
+import datetime
 from datetime import datetime, timedelta
 
 # import local modules
@@ -168,7 +169,7 @@ table2b = dp.get_table_2b(df, cutoff_date, end_report)
 
 table3_data, table3 = dp.get_table_3(consented, today, 30)
 
-
+# report_date_msg = 'Report generated on ' + str(datetime.date.today())
 
 # ----------------------------------------------------------------------------
 # FUNCTIONS FOR DASH UI COMPONENTS
@@ -210,7 +211,17 @@ tab1 = html.Div([
     dbc.Card(
         dbc.CardBody([
             html.H5('Table 1. Number of Subjects Screened', className="card-title"),
+            # html.Div(report_date_msg),
             html.Div(build_datatable(table1, 'table_1')),
+            dcc.Markdown('''
+                Table is cumulative over study
+                **Center Name:** Center ID # and name
+                **All Participants:** Total Number of Subjects screened
+                **Yes:** Total number of subjects who expressed interest in participating in study
+                **Maybe:** Total number of subjects who said they might participate in study
+                **No:** Total number of subjects who declined to participate in study
+                '''
+                ,style={"white-space": "pre"}),
         ]),
     ),
     dbc.Card(
@@ -218,18 +229,41 @@ tab1 = html.Div([
             html.H5('Table 2. Reasons for declining'),
             html.H6('Table 2.a. Reasons for declining by Site'),
             html.Div(build_datatable(table2a, 'table_2a')),
+            dcc.Markdown('''
+                Table is cumulative over study
+                **Center Name:** Center ID # and name
+                **Total Declined:** Total Number of Subjects screened
+                **Additional Columns:** Total Number of Subjects who sited that reason in declining.
+                *Note*: Subjects may report multiple reasons (or no reason) for declining.
+                '''
+                ,style={"white-space": "pre"}),
         ]),
     ),
     dbc.Card(
         dbc.CardBody([
             html.H6('Table 2.b. Reasons for declining ‘Additional Comments’'),
             html.Div(build_datatable(table2b, 'table_2b')),
+            dcc.Markdown('''
+                Table includes observations from the past week.
+                '''
+                ,style={"white-space": "pre"}),
         ]),
     ),
     dbc.Card(
         dbc.CardBody([
             html.H5('Table 3. Number of Subjects Consented'),
             html.Div(build_datatable(table3, 'table_3')),
+            dcc.Markdown('''
+                Table is cumulative over study
+                **Center Name:** Center ID # and name
+                **Consented:** Total Number of Subjects consented
+                **Days Since Last Consent:** Number of days since most recent consent (for sites who have consented at least one subject)
+                **Consents in last 30 days** : Rate of consent per 30 days
+                **Total Eligible:** Total number of subjects who declined to participate in study
+                **Total Ineligible:** Total number of subjects who were ineligible to participate in study
+                **Total Rescinded:** Total number of subjects who withdrew from the study
+                '''
+                ,style={"white-space": "pre"}),
         ]),
     ),
 ])
