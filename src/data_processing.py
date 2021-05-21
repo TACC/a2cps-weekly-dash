@@ -4,6 +4,7 @@ import requests
 import math
 import numpy as np
 import pandas as pd # Dataframe manipulations
+import datetime
 from datetime import datetime, timedelta
 
 # ----------------------------------------------------------------------------
@@ -168,31 +169,28 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
                              'eligible':'sum',
                              'ewdateterm':'count',
                            'within_range':'sum'}
-    aggregate_columns_names = ['id_count','date_and_time_max','eligible_sum','ewdateterm_count', 'within_range_sum']
     cols = cols_for_groupby + list(aggregate_columns_dict.keys())
-
-    # Perform aggregating functions on the dataframe
     t3_aggregate = t3[cols].groupby(by=cols_for_groupby).agg(aggregate_columns_dict)
 
-    # Assign aggregated columns to new, descriptive names
-    t3_aggregate.columns = aggregate_columns_names
-
-    # Calculate # of ineligible from total - eligible
-    t3_aggregate['ineligible'] = t3_aggregate['id_count'] - t3_aggregate['eligible_sum']
+    # Reset Index
+    t3_aggregate = t3_aggregate.reset_index()
 
     # Calculate the number of days since the last consent
-    t3_aggregate['days_since_consent'] = end_report_date.date() - t3_aggregate['date_and_time_max'].dt.date
+    t3_aggregate['days_since_consent'] = (end_report_date.date() - t3_aggregate['date_and_time'].dt.date).astype(str)
+
+    # Calculate # of ineligible from total - eligible
+    t3_aggregate['ineligible'] = t3_aggregate['screening_id'] - t3_aggregate['eligible']
+
 
     # Rename and reorder columns for display
-    t3_aggregate = t3_aggregate.reset_index()
     consent_range_col_name = 'Consents in last ' + str(days_range) +' Days'
     rename_dict = {'redcap_data_access_group_display':'Center Name',
-                    'id_count':'Consented',
+                    'screening_id':'Consented',
                     'days_since_consent':'Days Since Last Consent',
-                    'within_range_sum':consent_range_col_name,
-                   'eligible_sum':'Total Eligible',
+                    'within_range':consent_range_col_name,
+                   'eligible':'Total Eligible',
                    'ineligible':'Total ineligible',
-                   'ewdateterm_count': 'Total Rescinded'
+                   'ewdateterm': 'Total Rescinded'
                   }
     t3_aggregate = t3_aggregate.rename(columns = rename_dict)
     cols_display_order = ['Center Name', 'Consented', 'Days Since Last Consent',consent_range_col_name,
@@ -206,7 +204,25 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
 # ----------------------------------------------------------------------------
 # Study Status Tables
 # ----------------------------------------------------------------------------
-
+def get_tables_5_6(df):
+    # Get patients who rescinded consent, i.e. have a value in the 'ewdateterm' column
+    rescinded = df.dropna(subset=['ewdateterm'])
+    rescinded_cols = ['redcap_data_access_group_display','record_id','date_and_time','ewdateterm','ewprimaryreason','ewcomments','sp_surg_date']
+    rescinded = rescinded[rescinded_cols]
+    # Display record id as int
+    rescinded.record_id = rescinded.record_id.astype('int32')
+    # TO DO: need to convert reasons to text reasons
+    # Rename columns to user friendly versions
+    rescinded.columns =['Center Name', 'Record ID', 'Consent Date',
+       'Early Termination Date', 'Reason', 'Comments', 'sp_surg_date']
+    # Split dataset into leaving before pr after surgery
+    rescinded_pre_surgery = rescinded[rescinded.sp_surg_date.isna()].drop(['sp_surg_date'],axis=1)
+    if len(rescinded_pre_surgery) == 0:
+            rescinded_pre_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
+    rescinded_post_surgery = rescinded.dropna(subset=['sp_surg_date'])
+    if len(rescinded_post_surgery) == 0:
+            rescinded_post_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
+    return rescinded_pre_surgery, rescinded_post_surgery
 
 # ----------------------------------------------------------------------------
 # Deviation & Adverse Event Tables
