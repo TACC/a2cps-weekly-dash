@@ -171,8 +171,12 @@ table2b = dp.get_table_2b(df, cutoff_date, end_report)
 table3_data, table3 = dp.get_table_3(consented, today, 30)
 
 ## STUDY Status
-
 table5, table6 = dp.get_tables_5_6(df)
+
+## Deviations & Adverse Events
+deviations = dp.get_deviation_records(df, multi_data, display_terms_dict)
+table7a = dp.get_deviations_by_center(df, deviations, display_terms_dict)
+table7b = dp.get_table7b_timelimited(deviations)
 
 # ----------------------------------------------------------------------------
 # FUNCTIONS FOR DASH UI COMPONENTS
@@ -291,20 +295,36 @@ tab2 = html.Div([
 
 tab3 = html.Div([
     dbc.Card([
-        html.H5('Table 7.a. Protocol Deviations'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
-    ],body=True),
+        dbc.CardBody([
+            html.H5('Table 7.a. Protocol Deviations'),
+            html.Div([report_date_msg, '. Table is cumulative over study']),
+            html.Div(build_datatable(table7a, 'table_7a')),
+            dcc.Markdown('''
+                **Center Name:** Center ID # and name
+                **Total Subjects:** Total Number of Subjects consented
+                **Total Subjects with Deviation:** Total Number of Subjects with at least one deviation
+                **Percent with 1+ Deviations:** Percent of Subjects with 1 or more deviations
+                **Total Deviations:** Total of all deviations at this center
+                **Additional Columns:** Count by center of the total number of each particular type of deviation
+                '''
+                ,style={"white-space": "pre"}),
+        ]),
+    ]),
     dbc.Card([
-        html.H5('Table 7.b. Description of Protocol Deviations'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
-    ],body=True),
+        dbc.CardBody([
+            html.H5('Table 7.b. Description of Protocol Deviations'),
+            html.Div([report_date_msg, '. Table includes observations from the past week.']),
+            html.Div(build_datatable(table7b, 'table_7b')),
+        ]),
+    ]),
     dbc.Card([
         html.H5('Table 8.a. Adverse Events'),
+        html.Div('No Data to Report at this time')
         # html.Div(build_datatable(t2_site_count, 'table_2')),
     ],body=True),
     dbc.Card([
         html.H5('Table 8.b. Description of Adverse Events'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
+        html.Div('No Data to Report at this time')
     ],body=True),
 ])
 
@@ -312,6 +332,11 @@ tab3 = html.Div([
 tab4 = html.Div([
     dbc.Card([
         html.H5('Table 9. Demographic Characteristics'),
+        html.Div([report_date_msg, '. Table is cumulative over study']),
+        html.H5('Gender'),
+        html.H5('Race'),
+        html.H5('Ethnicity'),
+        html.H5('Age'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
     ],body=True),
 ])
@@ -323,10 +348,11 @@ app.layout = html.Div([
     html.Div([
         html.H2(['A2CPS Weekly Report']),
         dcc.Tabs(id='tabs_tables', children=[
-            # dcc.Tab(label='Screening', children=[tab1]),
+            dcc.Tab(label='Screening', children=[tab1]),
             dcc.Tab(label='Study Status', children=[tab2]),
             dcc.Tab(label='Deviations & Adverse Events', children=[tab3]),
             dcc.Tab(label='Demographics', children=[tab4]),
+
         ]),
     ]
     , style =CONTENT_STYLE)

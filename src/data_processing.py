@@ -200,7 +200,6 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
 
     return t3, t3_aggregate
 
-
 # ----------------------------------------------------------------------------
 # Study Status Tables
 # ----------------------------------------------------------------------------
@@ -227,7 +226,102 @@ def get_tables_5_6(df):
 # ----------------------------------------------------------------------------
 # Deviation & Adverse Event Tables
 # ----------------------------------------------------------------------------
+def get_deviation_records(df, multi_data, display_terms_dict):
+    # Get Data on Protocol deviations
+    deviation_flag_cols = ['erep_prot_dev']
+    deviations_cols = ['record_id', 'instance','erep_local_dtime',
+           'erep_protdev_type', 'erep_protdev_desc',
+           'erep_protdev_caplan']
+    deviations = multi_data.dropna(subset=deviation_flag_cols)[deviations_cols ]
 
+    # Merge deviations with center info
+    deviations = deviations.merge(df[['redcap_data_access_group','redcap_data_access_group_display','record_id','sp_v1_preop_date']], how='left', on = 'record_id')
+
+    # Convert deviation type to text
+    deviation_terms = display_terms_dict['erep_protdev_type']
+    deviation_terms.columns = ['erep_protdev_type','Deviation']
+    deviations = deviations.merge(deviation_terms, how='outer', on='erep_protdev_type')
+
+    return deviations
+
+def get_deviations_by_center(df, deviations, display_terms_dict):
+    dev_cols = ['record_id','redcap_data_access_group','screening_id','sp_v1_preop_date']
+    baseline = df.dropna(subset=['sp_v1_preop_date'])[dev_cols]
+    baseline = baseline.reset_index()
+
+    # Flag patients who have an associated deviation
+    records_with_deviation = deviations.record_id.unique()
+    baseline_with_dev = baseline[baseline.record_id.isin(records_with_deviation)]
+
+    # Calculate total baseline participants
+    baseline_total = baseline.groupby(by=['redcap_data_access_group'],as_index=False).size()
+    baseline_total = baseline_total.rename(columns={'size':'Total Subjects'})
+
+    # Calculate total baseline participants with 1+ deviations
+    baseline_dev_total = baseline_with_dev.groupby(by=['redcap_data_access_group'],as_index=False).size()
+    baseline_dev_total = baseline_dev_total.rename(columns={'size':'Total Subjects with Deviation'})
+
+    # Merge dataframes
+    baseline_total = baseline_total.merge(baseline_dev_total, how='outer', on = 'redcap_data_access_group')
+
+    # Calculate Perent Column
+    baseline_total['Percent with 1+ Deviation'] = 100 * (baseline_total['Total Subjects with Deviation'] / baseline_total['Total Subjects'])
+
+    # Add count of all deviations for a given center
+    center_count = pd.DataFrame(deviations.value_counts(subset=['redcap_data_access_group'])).reset_index()
+    center_count.columns =['redcap_data_access_group','Total Deviations']
+    baseline_total = baseline_total.merge(center_count, how='left', on = 'redcap_data_access_group')
+
+    # Merge data with full list of centers
+    centers = display_terms_dict['redcap_data_access_group']
+    baseline_total = centers.merge(baseline_total,how='left', on='redcap_data_access_group')
+
+    # Get list of deviation type by center
+    dev_by_center = deviations[['record_id','Deviation', 'instance','redcap_data_access_group']]
+
+    # Group and count by center
+    dev_by_center = dev_by_center.groupby(by=['redcap_data_access_group','Deviation'],as_index=False).size()
+
+    # Pivot deviation rows into columns
+    dev_by_center_pivot =  pd.pivot_table(dev_by_center, index=["redcap_data_access_group"], columns=["Deviation"], values=["size"])
+
+    # Clean up column levels and naming
+    dev_by_center_pivot.columns = dev_by_center_pivot.columns.droplevel()
+    dev_by_center_pivot.columns.name = ''
+    dev_by_center_pivot = dev_by_center_pivot.reset_index()
+
+    # Merge baseline total and specific deviation information into one table
+    baseline_total = baseline_total.merge(dev_by_center_pivot, how='left', on='redcap_data_access_group')
+
+    # Drop center database name and rename display colum
+    baseline_total = baseline_total.drop(columns=['redcap_data_access_group'])
+    baseline_total = baseline_total.rename(columns={'redcap_data_access_group_display':'Center Name'})
+
+    return baseline_total
+
+
+def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_range = 7):
+    # Get deviations within last days range days
+    within_days_range = ((end_report_date - deviations.erep_local_dtime).dt.days) <= days_range
+    deviations['within_range'] = within_days_range
+    table7b = deviations[deviations['within_range']]
+
+    # Sort by most recent, then record_id, then instance
+    table7b = table7b.sort_values(['erep_local_dtime', 'record_id', 'erep_protdev_type'], ascending=[False, True, True])
+
+    #select columns for display and rename
+    table7b_cols = ['redcap_data_access_group_display','record_id', 'erep_local_dtime', 'Deviation',
+       'erep_protdev_desc', 'erep_protdev_caplan']
+    table7b_cols_new_names = ['Center Name','PID', 'Deviation Date', 'Deviation',
+       'Description', 'Corrective Action']
+    table7b = table7b[table7b_cols]
+    table7b.columns = table7b_cols_new_names
+
+    # Adjust cols: Record ID as int, Datetime in DD/MM/YY format
+    table7b['PID'] = table7b['PID'].astype(int)
+    table7b['Deviation Date'] = table7b['Deviation Date'].dt.strftime('%m/%d/%Y')
+
+    return table7b
 
 # ----------------------------------------------------------------------------
 # Demographics Tables
