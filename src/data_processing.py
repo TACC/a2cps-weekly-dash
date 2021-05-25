@@ -299,7 +299,6 @@ def get_deviations_by_center(df, deviations, display_terms_dict):
 
     return baseline_total
 
-
 def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_range = 7):
     # Get deviations within last days range days
     within_days_range = ((end_report_date - deviations.erep_local_dtime).dt.days) <= days_range
@@ -326,3 +325,50 @@ def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_ra
 # ----------------------------------------------------------------------------
 # Demographics Tables
 # ----------------------------------------------------------------------------
+def get_demographic_data(df):
+    id_cols = ['screening_id','redcap_data_access_group_display', 'ewdateterm']
+    demo_cols = ['age', 'dem_race_display', 'ethnic_display',  'sex_display']
+    screening_cols = ['screening_age', 'screening_race_display', 'screening_ethnicity_display', 'screening_gender_display']
+    demo= df[id_cols + demo_cols + screening_cols].copy()
+
+    # Fill in data from screening where missing
+    # demo_ethnic['ethnicity'] = np.where(demo_ethnic['ethnic_description'].isnull(), demo_ethnic['screening_ethnicity_description'], demo_ethnic['ethnic_description'])
+    mapping_dict = { 'age':'screening_age',
+                    'dem_race_display': 'screening_race_display',
+                    'ethnic_display': 'screening_ethnicity_display',
+                     'sex_display':'screening_gender_display'}
+
+    # 1) replace values with screening data if missing
+    mapped_cols = []
+    for key in mapping_dict.keys():
+        mapped_col = key + '_merge'
+        mapped_cols = mapped_cols + [mapped_col]
+        demo[mapped_col] = np.where(demo[key].isnull(), demo[mapping_dict[key]], demo[key])
+
+    # 2) select subset of columns
+    demo = demo[id_cols + mapped_cols]
+
+    # 3) Fill na with 'Unknown'
+    demo = demo.fillna('Unknown')
+
+    # 4) use Termination date column to map status as active or inactive
+    demo['Status'] = np.where(demo.ewdateterm == 'Unknown', 'Active', 'Inactive')
+
+    # 5) Rename Columns
+    demo.columns = ['ID', 'Center Name', 'Termination Date','Age', 'Race', 'Ethnicity', 'Sex', 'Status']
+
+    return demo
+
+def rollup_demo_data(demo_df, demo_col, display_terms_dict, display_term_key):
+    df_all = pd.DataFrame(display_terms_dict[display_term_key][display_term_key + '_display'])
+    df_all.columns = [demo_col]
+    counts = pd.DataFrame(demo_df[demo_col].value_counts()).reset_index()
+    normal = pd.DataFrame(demo_df[demo_col].value_counts(normalize=True)).reset_index()
+    merged = counts.merge(normal, on='index')
+    merged.columns = [demo_col,'Count','Percent']
+    df_all = df_all.merge(merged, how='left', on = demo_col)
+    df_all = df_all.fillna(0)
+    df_all['Count'] = df_all['Count'].astype(int)
+    df_all['Percent'] = df_all['Percent'].map("{:.2%}".format)
+    df_all.loc['All'] = df_all.sum(numeric_only=True, axis=0)
+    return df_all

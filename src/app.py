@@ -178,6 +178,17 @@ deviations = dp.get_deviation_records(df, multi_data, display_terms_dict)
 table7a = dp.get_deviations_by_center(df, deviations, display_terms_dict)
 table7b = dp.get_table7b_timelimited(deviations)
 
+## Demographics
+
+demographics = dp.get_demographic_data(consented)
+# get subset of active patients
+demo_active = demographics[demographics['Status']=='Active']
+
+sex  =  dp.rollup_demo_data(demo_active, 'Sex', display_terms_dict, 'sex')
+race = dp.rollup_demo_data(demo_active, 'Race', display_terms_dict, 'dem_race')
+ethnicity = dp.rollup_demo_data(demo_active, 'Ethnicity', display_terms_dict, 'ethnic')
+age = pd.DataFrame(demo_active.Age.describe().reset_index())
+
 # ----------------------------------------------------------------------------
 # FUNCTIONS FOR DASH UI COMPONENTS
 # ----------------------------------------------------------------------------
@@ -334,10 +345,13 @@ tab4 = html.Div([
         html.H5('Table 9. Demographic Characteristics'),
         html.Div([report_date_msg, '. Table is cumulative over study']),
         html.H5('Gender'),
+        html.Div(build_datatable(sex, 'table_9a')),
         html.H5('Race'),
+        html.Div(build_datatable(race, 'table_9b')),
         html.H5('Ethnicity'),
+        html.Div(build_datatable(ethnicity, 'table_9c')),
         html.H5('Age'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
+        html.Div(build_datatable(age, 'table_9d')),
     ],body=True),
 ])
 
