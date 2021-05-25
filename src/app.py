@@ -158,6 +158,7 @@ cutoff_date = end_report - timedelta(days=cutoff_report_range_days)
 # ----------------------------------------------------------------------------
 # Data for Tables
 # ----------------------------------------------------------------------------
+report_date_msg = 'Report generated on ' + str(datetime.today().date())
 
 ## SCREENING TABLES
 table1 = dp.get_table_1(df)
@@ -169,7 +170,13 @@ table2b = dp.get_table_2b(df, cutoff_date, end_report)
 
 table3_data, table3 = dp.get_table_3(consented, today, 30)
 
-# report_date_msg = 'Report generated on ' + str(datetime.date.today())
+## STUDY Status
+table5, table6 = dp.get_tables_5_6(df)
+
+## Deviations & Adverse Events
+deviations = dp.get_deviation_records(df, multi_data, display_terms_dict)
+table7a = dp.get_deviations_by_center(df, deviations, display_terms_dict)
+table7b = dp.get_table7b_timelimited(deviations)
 
 # ----------------------------------------------------------------------------
 # FUNCTIONS FOR DASH UI COMPONENTS
@@ -211,10 +218,9 @@ tab1 = html.Div([
     dbc.Card(
         dbc.CardBody([
             html.H5('Table 1. Number of Subjects Screened', className="card-title"),
-            # html.Div(report_date_msg),
+            html.Div([report_date_msg, '. Table is cumulative over study']),
             html.Div(build_datatable(table1, 'table_1')),
             dcc.Markdown('''
-                Table is cumulative over study
                 **Center Name:** Center ID # and name
                 **All Participants:** Total Number of Subjects screened
                 **Yes:** Total number of subjects who expressed interest in participating in study
@@ -228,9 +234,9 @@ tab1 = html.Div([
         dbc.CardBody([
             html.H5('Table 2. Reasons for declining'),
             html.H6('Table 2.a. Reasons for declining by Site'),
+            html.Div([report_date_msg, '. Table is cumulative over study']),
             html.Div(build_datatable(table2a, 'table_2a')),
             dcc.Markdown('''
-                Table is cumulative over study
                 **Center Name:** Center ID # and name
                 **Total Declined:** Total Number of Subjects screened
                 **Additional Columns:** Total Number of Subjects who sited that reason in declining.
@@ -242,19 +248,16 @@ tab1 = html.Div([
     dbc.Card(
         dbc.CardBody([
             html.H6('Table 2.b. Reasons for declining ‘Additional Comments’'),
+            html.Div([report_date_msg, '. Table includes observations from the past week.']),
             html.Div(build_datatable(table2b, 'table_2b')),
-            dcc.Markdown('''
-                Table includes observations from the past week.
-                '''
-                ,style={"white-space": "pre"}),
         ]),
     ),
     dbc.Card(
         dbc.CardBody([
             html.H5('Table 3. Number of Subjects Consented'),
+            html.Div([report_date_msg, '. Table is cumulative over study']),
             html.Div(build_datatable(table3, 'table_3')),
             dcc.Markdown('''
-                Table is cumulative over study
                 **Center Name:** Center ID # and name
                 **Consented:** Total Number of Subjects consented
                 **Days Since Last Consent:** Number of days since most recent consent (for sites who have consented at least one subject)
@@ -271,32 +274,57 @@ tab1 = html.Div([
 tab2 = html.Div([
     dbc.Card([
         html.H5('Table 4. Ongoing Study Status'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
+        html.Div('Table to come further into study'),
     ],body=True),
     dbc.Card([
         html.H5('Table 5. Rescinded Consent'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
+        html.Div([report_date_msg]),
+        # daq.ToggleSwitch(
+        #     id='toggle-rescinded',
+        #     label=['Previous Week','Cumulative'],
+        #     value=False
+        # ),
+        html.Div(build_datatable(table5, 'table_5')),
     ],body=True),
     dbc.Card([
         html.H5('Table 6. Early Study Termination Listing'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
+        html.Div([report_date_msg]),
+        html.Div(build_datatable(table6, 'table_6')),
     ],body=True),
 ])
 
 tab3 = html.Div([
     dbc.Card([
-        html.H5('Table 7. Protocol Deviations'),
-        html.H6('Table 7.a. Protocol Deviations'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
-        html.H6('Table 7.b. Description of Protocol Deviations'),
+        dbc.CardBody([
+            html.H5('Table 7.a. Protocol Deviations'),
+            html.Div([report_date_msg, '. Table is cumulative over study']),
+            html.Div(build_datatable(table7a, 'table_7a')),
+            dcc.Markdown('''
+                **Center Name:** Center ID # and name
+                **Total Subjects:** Total Number of Subjects consented
+                **Total Subjects with Deviation:** Total Number of Subjects with at least one deviation
+                **Percent with 1+ Deviations:** Percent of Subjects with 1 or more deviations
+                **Total Deviations:** Total of all deviations at this center
+                **Additional Columns:** Count by center of the total number of each particular type of deviation
+                '''
+                ,style={"white-space": "pre"}),
+        ]),
+    ]),
+    dbc.Card([
+        dbc.CardBody([
+            html.H5('Table 7.b. Description of Protocol Deviations'),
+            html.Div([report_date_msg, '. Table includes observations from the past week.']),
+            html.Div(build_datatable(table7b, 'table_7b')),
+        ]),
+    ]),
+    dbc.Card([
+        html.H5('Table 8.a. Adverse Events'),
+        html.Div('No Data to Report at this time')
         # html.Div(build_datatable(t2_site_count, 'table_2')),
     ],body=True),
     dbc.Card([
-        html.H5('Table 8. Adverse Events'),
-        html.H6('Table 8.a. Adverse Events'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
-        html.H6('Table 8.b. Description of Adverse Events'),
-        # html.Div(build_datatable(t2_site_count, 'table_2')),
+        html.H5('Table 8.b. Description of Adverse Events'),
+        html.Div('No Data to Report at this time')
     ],body=True),
 ])
 
@@ -304,6 +332,11 @@ tab3 = html.Div([
 tab4 = html.Div([
     dbc.Card([
         html.H5('Table 9. Demographic Characteristics'),
+        html.Div([report_date_msg, '. Table is cumulative over study']),
+        html.H5('Gender'),
+        html.H5('Race'),
+        html.H5('Ethnicity'),
+        html.H5('Age'),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
     ],body=True),
 ])
@@ -314,38 +347,19 @@ tab4 = html.Div([
 app.layout = html.Div([
     html.Div([
         html.H2(['A2CPS Weekly Report']),
-        dcc.Tabs(id='tabs_tables', value='tab-1', children=[
-            dcc.Tab(label='Screening', value='tab-1'),
-            dcc.Tab(label='Study Status', value='tab-2'),
-            dcc.Tab(label='Deviations & Adverse Events', value='tab-3'),
-            dcc.Tab(label='Demographics', value='tab-4'),
+        dcc.Tabs(id='tabs_tables', children=[
+            dcc.Tab(label='Screening', children=[tab1]),
+            dcc.Tab(label='Study Status', children=[tab2]),
+            dcc.Tab(label='Deviations & Adverse Events', children=[tab3]),
+            dcc.Tab(label='Demographics', children=[tab4]),
+
         ]),
-        html.Div(id='tabs_tables-content'),
-        # html.Div([
-        #     html.H3('Table 2'),
-        #     build_datatable(t2_site_count, 'table_2'),
-        # ]),
     ]
     , style =CONTENT_STYLE)
 ],style=TACC_IFRAME_SIZE)
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
-
-@app.callback(Output('tabs_tables-content', 'children'),
-              Input('tabs_tables', 'value'))
-def render_content(tab):
-    if tab == 'tab-1':
-        return tab1
-    elif tab == 'tab-2':
-        return tab2
-    elif tab == 'tab-3':
-        return tab3
-    elif tab == 'tab-4':
-        return tab4
-    else:
-        return html.Div('please select a tab')
-
 
 
 # ----------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import requests
 import math
 import numpy as np
 import pandas as pd # Dataframe manipulations
+import datetime
 from datetime import datetime, timedelta
 
 # ----------------------------------------------------------------------------
@@ -168,31 +169,28 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
                              'eligible':'sum',
                              'ewdateterm':'count',
                            'within_range':'sum'}
-    aggregate_columns_names = ['id_count','date_and_time_max','eligible_sum','ewdateterm_count', 'within_range_sum']
     cols = cols_for_groupby + list(aggregate_columns_dict.keys())
-
-    # Perform aggregating functions on the dataframe
     t3_aggregate = t3[cols].groupby(by=cols_for_groupby).agg(aggregate_columns_dict)
 
-    # Assign aggregated columns to new, descriptive names
-    t3_aggregate.columns = aggregate_columns_names
-
-    # Calculate # of ineligible from total - eligible
-    t3_aggregate['ineligible'] = t3_aggregate['id_count'] - t3_aggregate['eligible_sum']
+    # Reset Index
+    t3_aggregate = t3_aggregate.reset_index()
 
     # Calculate the number of days since the last consent
-    t3_aggregate['days_since_consent'] = end_report_date.date() - t3_aggregate['date_and_time_max'].dt.date
+    t3_aggregate['days_since_consent'] = (end_report_date.date() - t3_aggregate['date_and_time'].dt.date).astype(str)
+
+    # Calculate # of ineligible from total - eligible
+    t3_aggregate['ineligible'] = t3_aggregate['screening_id'] - t3_aggregate['eligible']
+
 
     # Rename and reorder columns for display
-    t3_aggregate = t3_aggregate.reset_index()
     consent_range_col_name = 'Consents in last ' + str(days_range) +' Days'
     rename_dict = {'redcap_data_access_group_display':'Center Name',
-                    'id_count':'Consented',
+                    'screening_id':'Consented',
                     'days_since_consent':'Days Since Last Consent',
-                    'within_range_sum':consent_range_col_name,
-                   'eligible_sum':'Total Eligible',
+                    'within_range':consent_range_col_name,
+                   'eligible':'Total Eligible',
                    'ineligible':'Total ineligible',
-                   'ewdateterm_count': 'Total Rescinded'
+                   'ewdateterm': 'Total Rescinded'
                   }
     t3_aggregate = t3_aggregate.rename(columns = rename_dict)
     cols_display_order = ['Center Name', 'Consented', 'Days Since Last Consent',consent_range_col_name,
@@ -202,16 +200,128 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
 
     return t3, t3_aggregate
 
-
 # ----------------------------------------------------------------------------
 # Study Status Tables
 # ----------------------------------------------------------------------------
-
+def get_tables_5_6(df):
+    # Get patients who rescinded consent, i.e. have a value in the 'ewdateterm' column
+    rescinded = df.dropna(subset=['ewdateterm'])
+    rescinded_cols = ['redcap_data_access_group_display','record_id','date_and_time','ewdateterm','ewprimaryreason','ewcomments','sp_surg_date']
+    rescinded = rescinded[rescinded_cols]
+    # Display record id as int
+    rescinded.record_id = rescinded.record_id.astype('int32')
+    # TO DO: need to convert reasons to text reasons
+    # Rename columns to user friendly versions
+    rescinded.columns =['Center Name', 'Record ID', 'Consent Date',
+       'Early Termination Date', 'Reason', 'Comments', 'sp_surg_date']
+    # Split dataset into leaving before pr after surgery
+    rescinded_pre_surgery = rescinded[rescinded.sp_surg_date.isna()].drop(['sp_surg_date'],axis=1)
+    if len(rescinded_pre_surgery) == 0:
+            rescinded_pre_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
+    rescinded_post_surgery = rescinded.dropna(subset=['sp_surg_date'])
+    if len(rescinded_post_surgery) == 0:
+            rescinded_post_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
+    return rescinded_pre_surgery, rescinded_post_surgery
 
 # ----------------------------------------------------------------------------
 # Deviation & Adverse Event Tables
 # ----------------------------------------------------------------------------
+def get_deviation_records(df, multi_data, display_terms_dict):
+    # Get Data on Protocol deviations
+    deviation_flag_cols = ['erep_prot_dev']
+    deviations_cols = ['record_id', 'instance','erep_local_dtime',
+           'erep_protdev_type', 'erep_protdev_desc',
+           'erep_protdev_caplan']
+    deviations = multi_data.dropna(subset=deviation_flag_cols)[deviations_cols ]
 
+    # Merge deviations with center info
+    deviations = deviations.merge(df[['redcap_data_access_group','redcap_data_access_group_display','record_id','sp_v1_preop_date']], how='left', on = 'record_id')
+
+    # Convert deviation type to text
+    deviation_terms = display_terms_dict['erep_protdev_type']
+    deviation_terms.columns = ['erep_protdev_type','Deviation']
+    deviations = deviations.merge(deviation_terms, how='outer', on='erep_protdev_type')
+
+    return deviations
+
+def get_deviations_by_center(df, deviations, display_terms_dict):
+    dev_cols = ['record_id','redcap_data_access_group','screening_id','sp_v1_preop_date']
+    baseline = df.dropna(subset=['sp_v1_preop_date'])[dev_cols]
+    baseline = baseline.reset_index()
+
+    # Flag patients who have an associated deviation
+    records_with_deviation = deviations.record_id.unique()
+    baseline_with_dev = baseline[baseline.record_id.isin(records_with_deviation)]
+
+    # Calculate total baseline participants
+    baseline_total = baseline.groupby(by=['redcap_data_access_group'],as_index=False).size()
+    baseline_total = baseline_total.rename(columns={'size':'Total Subjects'})
+
+    # Calculate total baseline participants with 1+ deviations
+    baseline_dev_total = baseline_with_dev.groupby(by=['redcap_data_access_group'],as_index=False).size()
+    baseline_dev_total = baseline_dev_total.rename(columns={'size':'Total Subjects with Deviation'})
+
+    # Merge dataframes
+    baseline_total = baseline_total.merge(baseline_dev_total, how='outer', on = 'redcap_data_access_group')
+
+    # Calculate Perent Column
+    baseline_total['Percent with 1+ Deviation'] = 100 * (baseline_total['Total Subjects with Deviation'] / baseline_total['Total Subjects'])
+
+    # Add count of all deviations for a given center
+    center_count = pd.DataFrame(deviations.value_counts(subset=['redcap_data_access_group'])).reset_index()
+    center_count.columns =['redcap_data_access_group','Total Deviations']
+    baseline_total = baseline_total.merge(center_count, how='left', on = 'redcap_data_access_group')
+
+    # Merge data with full list of centers
+    centers = display_terms_dict['redcap_data_access_group']
+    baseline_total = centers.merge(baseline_total,how='left', on='redcap_data_access_group')
+
+    # Get list of deviation type by center
+    dev_by_center = deviations[['record_id','Deviation', 'instance','redcap_data_access_group']]
+
+    # Group and count by center
+    dev_by_center = dev_by_center.groupby(by=['redcap_data_access_group','Deviation'],as_index=False).size()
+
+    # Pivot deviation rows into columns
+    dev_by_center_pivot =  pd.pivot_table(dev_by_center, index=["redcap_data_access_group"], columns=["Deviation"], values=["size"])
+
+    # Clean up column levels and naming
+    dev_by_center_pivot.columns = dev_by_center_pivot.columns.droplevel()
+    dev_by_center_pivot.columns.name = ''
+    dev_by_center_pivot = dev_by_center_pivot.reset_index()
+
+    # Merge baseline total and specific deviation information into one table
+    baseline_total = baseline_total.merge(dev_by_center_pivot, how='left', on='redcap_data_access_group')
+
+    # Drop center database name and rename display colum
+    baseline_total = baseline_total.drop(columns=['redcap_data_access_group'])
+    baseline_total = baseline_total.rename(columns={'redcap_data_access_group_display':'Center Name'})
+
+    return baseline_total
+
+
+def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_range = 7):
+    # Get deviations within last days range days
+    within_days_range = ((end_report_date - deviations.erep_local_dtime).dt.days) <= days_range
+    deviations['within_range'] = within_days_range
+    table7b = deviations[deviations['within_range']]
+
+    # Sort by most recent, then record_id, then instance
+    table7b = table7b.sort_values(['erep_local_dtime', 'record_id', 'erep_protdev_type'], ascending=[False, True, True])
+
+    #select columns for display and rename
+    table7b_cols = ['redcap_data_access_group_display','record_id', 'erep_local_dtime', 'Deviation',
+       'erep_protdev_desc', 'erep_protdev_caplan']
+    table7b_cols_new_names = ['Center Name','PID', 'Deviation Date', 'Deviation',
+       'Description', 'Corrective Action']
+    table7b = table7b[table7b_cols]
+    table7b.columns = table7b_cols_new_names
+
+    # Adjust cols: Record ID as int, Datetime in DD/MM/YY format
+    table7b['PID'] = table7b['PID'].astype(int)
+    table7b['Deviation Date'] = table7b['Deviation Date'].dt.strftime('%m/%d/%Y')
+
+    return table7b
 
 # ----------------------------------------------------------------------------
 # Demographics Tables
