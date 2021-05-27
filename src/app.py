@@ -118,35 +118,60 @@ export_style = '''
 # MAIN DATA Loading and Prep
 # ----------------------------------------------------------------------------
 # Display Dictionary
-display_terms_file = 'A2CPS_display_terms.csv'
-display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
-display_terms_dict = dp.get_display_dictionary(display_terms, 'api_field', 'api_value', 'display_text')
+def load_display_terms(display_terms_file):
+    try:
+        display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
+        display_terms_dict = dp.get_display_dictionary(display_terms, 'api_field', 'api_value', 'display_text')
+        return display_terms_dict
+    except Exception as e:
+        print(e)
+        return None
+
+display_terms_dict =  load_display_terms('A2CPS_display_terms.csv')
 
 # path to Data APIs and reference files / load data
 # Weekly Data from csv
 weekly_csv = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=weekly' # Production
-df = pd.read_csv(weekly_csv)
-df = df.apply(pd.to_numeric, errors='ignore')
-# convert date columns from object --> datetime datatypes as appropriate
-datetime_cols_list = ['date_of_contact','date_and_time','ewdateterm'] #erep_local_dtime also dates, but currently an array
-df[datetime_cols_list] = df[datetime_cols_list].apply(pd.to_datetime)
-# Convert 1-to-1 fields to user friendly format using display terms dictionary
-one_to_many_cols = ['reason_not_interested','erep_protdev_type']
-for i in display_terms_dict.keys():
-    if i in df.columns:
-        if i not in one_to_many_cols: # exclude the cols containing one to many data
-            df = df.merge(display_terms_dict[i], how='left', on=i)
+def load_weekly_data(weekly_csv):
+    try:
+        df = pd.read_csv(weekly_csv)
+        df = df.apply(pd.to_numeric, errors='ignore')
+
+        # convert date columns from object --> datetime datatypes as appropriate
+        datetime_cols_list = ['date_of_contact','date_and_time','ewdateterm'] #erep_local_dtime also dates, but currently an array
+        df[datetime_cols_list] = df[datetime_cols_list].apply(pd.to_datetime)
+        # Convert 1-to-1 fields to user friendly format using display terms dictionary
+        one_to_many_cols = ['reason_not_interested','erep_protdev_type']
+        for i in display_terms_dict.keys():
+            if i in df.columns:
+                if i not in one_to_many_cols: # exclude the cols containing one to many data
+                    df = df.merge(display_terms_dict[i], how='left', on=i)
+        # Get subset of consented patients
+        # get data subset of just consented patients
+        consented = df[df.consent_process_form_complete == 2].copy()
+        return df, consented
+    except Exception as e:
+        print(e)
+        return None, None
+df, consented = load_weekly_data(weekly_csv)
+
 
 # Load data from API for One-to-May data points per record ID
 multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=adverse_effects'
-multi_data = dp.get_multi_row_data(multi_row_json)
-multi_data = multi_data.apply(pd.to_numeric, errors='ignore')
-multi_datetime_cols = ['erep_local_dtime','erep_ae_date','erep_onset_date','erep_resolution_date']
-multi_data[multi_datetime_cols] = multi_data[multi_datetime_cols].apply(pd.to_datetime)
+def load_multi_data(multi_row_json):
+    try:
+        multi_data = dp.get_multi_row_data(multi_row_json)
+        multi_data = multi_data.apply(pd.to_numeric, errors='ignore')
+        multi_datetime_cols = ['erep_local_dtime','erep_ae_date','erep_onset_date','erep_resolution_date']
+        multi_data[multi_datetime_cols] = multi_data[multi_datetime_cols].apply(pd.to_datetime)
 
-# Get subset of consented patients
-# get data subset of just consented patients
-consented = df[df.consent_process_form_complete == 2].copy()
+        return multi_data
+    except Exception as e:
+        print(e)
+        return None
+multi_data = load_multi_data(multi_row_json)
+
+
 
 # Set date range parameters for weekly reporting
 # cutoff date 1 week before report
