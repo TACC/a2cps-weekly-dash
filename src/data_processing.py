@@ -26,8 +26,9 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
             display_terms_dict[i] = term_df
         return display_terms_dict
 
-    except:
-        return 'Improper format for file'
+    except Exception as e:
+        print(e)
+        return None
 
 def get_multi_row_data(json_api_url):
     ''' Take the adverse effects JSON and convert into a data frame for analysis.
@@ -50,46 +51,50 @@ def get_multi_row_data(json_api_url):
         df = df.reset_index()
         df = df.rename(columns={'index': 'instance'})
         return df
-    except:
-        return pd.DataFrame()
-
+    except Exception as e:
+        print(e)
+        return None
 # ----------------------------------------------------------------------------
 # Screening Tables
 # ----------------------------------------------------------------------------
 def get_table_1(df):
-   # Define needed columns for this table and select subset from main dataframe
-    t1_cols = ['redcap_data_access_group_display','participation_interest_display','screening_id']
-    t1 = df[t1_cols]
+    try:
+       # Define needed columns for this table and select subset from main dataframe
+        t1_cols = ['redcap_data_access_group_display','participation_interest_display','screening_id']
+        t1 = df[t1_cols]
 
-    # drop missing data rows
-    t1 = t1.dropna()
+        # drop missing data rows
+        t1 = t1.dropna()
 
-    # group by center and participation interest value and count number of IDs in each group
-    t1 = t1.groupby(by=["redcap_data_access_group_display",'participation_interest_display']).count()
+        # group by center and participation interest value and count number of IDs in each group
+        t1 = t1.groupby(by=["redcap_data_access_group_display",'participation_interest_display']).count()
 
-    # Reset data frame index to get dataframe in standard form with center, participation interest flag, count
-    t1 = t1.reset_index()
+        # Reset data frame index to get dataframe in standard form with center, participation interest flag, count
+        t1 = t1.reset_index()
 
-    # Pivot participation interest values into separate columns
-    t1 = t1.pivot(index=['redcap_data_access_group_display'], columns='participation_interest_display', values='screening_id')
+        # Pivot participation interest values into separate columns
+        t1 = t1.pivot(index=['redcap_data_access_group_display'], columns='participation_interest_display', values='screening_id')
 
-    # Reset Index so center is a column
-    t1 = t1.reset_index()
+        # Reset Index so center is a column
+        t1 = t1.reset_index()
 
-    # remove index name
-    t1.columns.name = None
+        # remove index name
+        t1.columns.name = None
 
-    # Create Summary row ('All Sites') and Summary column ('All Participants')
-    t1_sum = t1
-    t1_sum.loc['All Sites']= t1_sum.sum(numeric_only=True, axis=0)
-    t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
+        # Create Summary row ('All Sites') and Summary column ('All Participants')
+        t1_sum = t1
+        t1_sum.loc['All Sites']= t1_sum.sum(numeric_only=True, axis=0)
+        t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
 
-    # Rename and reorder columns for display
-    t1_sum = t1_sum.rename(columns = {'redcap_data_access_group_display':'Center Name'})
-    cols_display_order = ['Center Name', 'All Participants', 'Yes', 'Maybe', 'No']
-    t1_sum = t1_sum[cols_display_order]
+        # Rename and reorder columns for display
+        t1_sum = t1_sum.rename(columns = {'redcap_data_access_group_display':'Center Name'})
+        cols_display_order = ['Center Name', 'All Participants', 'Yes', 'Maybe', 'No']
+        t1_sum = t1_sum[cols_display_order]
 
-    return t1_sum
+        return t1_sum
+    except Exception as e:
+        print(e)
+        return None        
 
 def get_table_2a(df, display_terms_t2a):
     # Get decline columns from dataframe where participant was not interested (participation_interest == 0)
