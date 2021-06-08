@@ -1,5 +1,9 @@
   # Libraries
 # Data
+# File Management
+import os # Operating system library
+import pathlib # file paths
+import json
 import requests
 import math
 import numpy as np
@@ -31,7 +35,7 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
         print(e)
         return None
 
-def load_display_terms(display_terms_file):
+def load_display_terms(ASSETS_PATH, display_terms_file):
     try:
         display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
         display_terms_dict = get_display_dictionary(display_terms, 'api_field', 'api_value', 'display_text')
@@ -255,6 +259,7 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     t3_aggregate = t3_aggregate[cols_display_order]
 
     return t3, t3_aggregate
+
 
 # ----------------------------------------------------------------------------
 # Study Status Tables
