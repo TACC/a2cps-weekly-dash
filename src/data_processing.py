@@ -96,6 +96,7 @@ def get_multi_row_data(json_api_url):
         print(e)
         return None
 
+      
 def load_multi_data(multi_row_json):
     try:
         multi_data = get_multi_row_data(multi_row_json)
@@ -107,7 +108,6 @@ def load_multi_data(multi_row_json):
     except Exception as e:
         print(e)
         return None
-
 
 # ----------------------------------------------------------------------------
 # Screening Tables
@@ -149,6 +149,7 @@ def get_table_1(df):
         return t1_sum
     except Exception as e:
         print(e)
+
         return None
 
 def get_table_2a(df, display_terms_t2a):
