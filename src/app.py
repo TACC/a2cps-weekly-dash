@@ -26,7 +26,6 @@ from dash.dependencies import Input, Output, State, ALL, MATCH
 
 # import local modules
 from data_processing import *
-import data_processing as dp
 
 
 # ----------------------------------------------------------------------------
@@ -126,8 +125,9 @@ display_terms_file = 'A2CPS_display_terms.csv'
 weekly_csv = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=weekly' # Production
 multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=adverse_effects'
 
+
 # Get dataframes
-display_terms_dict =  load_display_terms(display_terms_file)
+display_terms_dict =  load_display_terms(ASSETS_PATH, display_terms_file) 
 df, consented = load_weekly_data(weekly_csv, display_terms_dict)
 multi_data = load_multi_data(multi_row_json)
 
