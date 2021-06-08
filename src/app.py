@@ -14,9 +14,6 @@ import requests
 import datetime
 from datetime import datetime, timedelta
 
-# import local modules
-import data_processing as dp
-
 # Dash Framework
 import dash
 import dash_core_components as dcc
@@ -25,6 +22,12 @@ import dash_bootstrap_components as dbc
 import dash_table as dt
 import dash_daq as daq
 from dash.dependencies import Input, Output, State, ALL, MATCH
+
+
+# import local modules
+from data_processing import *
+import data_processing as dp
+
 
 # ----------------------------------------------------------------------------
 # CONFIG SETTINGS
@@ -121,18 +124,16 @@ export_style = '''
 def load_display_terms(display_terms_file):
     try:
         display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
-        display_terms_dict = dp.get_display_dictionary(display_terms, 'api_field', 'api_value', 'display_text')
+        display_terms_dict = get_display_dictionary(display_terms, 'api_field', 'api_value', 'display_text')
         return display_terms_dict
     except Exception as e:
         print(e)
         return None
 
-display_terms_dict =  load_display_terms('A2CPS_display_terms.csv')
 
 # path to Data APIs and reference files / load data
 # Weekly Data from csv
-weekly_csv = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=weekly' # Production
-def load_weekly_data(weekly_csv):
+def load_weekly_data(weekly_csv, display_terms_dict):
     try:
         df = pd.read_csv(weekly_csv)
         df = df.apply(pd.to_numeric, errors='ignore')
@@ -153,14 +154,12 @@ def load_weekly_data(weekly_csv):
     except Exception as e:
         print(e)
         return None, None
-df, consented = load_weekly_data(weekly_csv)
 
 
 # Load data from API for One-to-May data points per record ID
-multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=adverse_effects'
 def load_multi_data(multi_row_json):
     try:
-        multi_data = dp.get_multi_row_data(multi_row_json)
+        multi_data = get_multi_row_data(multi_row_json)
         multi_data = multi_data.apply(pd.to_numeric, errors='ignore')
         multi_datetime_cols = ['erep_local_dtime','erep_ae_date','erep_onset_date','erep_resolution_date']
         multi_data[multi_datetime_cols] = multi_data[multi_datetime_cols].apply(pd.to_datetime)
@@ -169,9 +168,23 @@ def load_multi_data(multi_row_json):
     except Exception as e:
         print(e)
         return None
+
+# ----------------------------------------------------------------------------
+# LOAD DATA
+# ----------------------------------------------------------------------------
+# Pointers to data files
+display_terms_file = 'A2CPS_display_terms.csv'
+weekly_csv = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=weekly' # Production
+multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=adverse_effects'
+
+
+# Get dataframes
+display_terms_dict =  load_display_terms(display_terms_file)
+df, consented = load_weekly_data(weekly_csv, display_terms_dict)
 multi_data = load_multi_data(multi_row_json)
 
-
+centers_list = df.redcap_data_access_group_display.unique()
+centers_df = pd.DataFrame(centers_list, columns = ['redcap_data_access_group_display'])
 
 # Set date range parameters for weekly reporting
 # cutoff date 1 week before report
@@ -180,38 +193,40 @@ end_report = today # ** CAN CHANGE THIS TO GET PAST REPORTS
 cutoff_report_range_days = 7
 cutoff_date = end_report - timedelta(days=cutoff_report_range_days)
 
-# ----------------------------------------------------------------------------
-# Data for Tables
-# ----------------------------------------------------------------------------
 report_date_msg = 'Report generated on ' + str(datetime.today().date())
 
+# ----------------------------------------------------------------------------
+# Generate Data for Tables
+# ----------------------------------------------------------------------------
+
 ## SCREENING TABLES
-table1 = dp.get_table_1(df)
+table1 = get_table_1(df)
 
 display_terms_t2a = display_terms_dict['reason_not_interested']
-table2a = dp.get_table_2a(df, display_terms_t2a)
+table2a = get_table_2a(df, display_terms_t2a)
 
-table2b = dp.get_table_2b(df, cutoff_date, end_report)
+table2b = get_table_2b(df, cutoff_date, end_report)
 
-table3_data, table3 = dp.get_table_3(consented, today, 30)
+table3_data, table3 = get_table_3(consented, today, 30)
 
 ## STUDY Status
-table5, table6 = dp.get_tables_5_6(df)
+table5, table6 = get_tables_5_6(df)
 
 ## Deviations & Adverse Events
-deviations = dp.get_deviation_records(df, multi_data, display_terms_dict)
-table7a = dp.get_deviations_by_center(df, deviations, display_terms_dict)
-table7b = dp.get_table7b_timelimited(deviations)
+deviations = get_deviation_records(df, multi_data, display_terms_dict)
+table7a = get_deviations_by_center(centers_df, consented, deviations, display_terms_dict)
+# table7a = get_deviations_by_center(df, deviations, display_terms_dict) OLD CODE
+table7b = get_table7b_timelimited(deviations)
 
 ## Demographics
 
-demographics = dp.get_demographic_data(consented)
+demographics = get_demographic_data(consented)
 # get subset of active patients
 demo_active = demographics[demographics['Status']=='Active']
 
-sex  =  dp.rollup_demo_data(demo_active, 'Sex', display_terms_dict, 'sex')
-race = dp.rollup_demo_data(demo_active, 'Race', display_terms_dict, 'dem_race')
-ethnicity = dp.rollup_demo_data(demo_active, 'Ethnicity', display_terms_dict, 'ethnic')
+sex  =  rollup_demo_data(demo_active, 'Sex', display_terms_dict, 'sex')
+race = rollup_demo_data(demo_active, 'Race', display_terms_dict, 'dem_race')
+ethnicity = rollup_demo_data(demo_active, 'Ethnicity', display_terms_dict, 'ethnic')
 age = pd.DataFrame(demo_active.Age.describe().reset_index())
 
 # ----------------------------------------------------------------------------
@@ -242,7 +257,7 @@ def build_datatable(data_source, table_id):
                 'color': 'white',
             },
             style_table={'overflowX': 'auto'},
-            # export_format="csv",
+            export_format="csv",
         )
     return new_datatable
 

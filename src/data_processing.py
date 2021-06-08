@@ -8,8 +8,9 @@ import datetime
 from datetime import datetime, timedelta
 
 # ----------------------------------------------------------------------------
-# DATA LOADING AND CLEANING FUNCTIONS
+# MAIN DATA Loading and Prep
 # ----------------------------------------------------------------------------
+# Display Dictionary
 def get_display_dictionary(display_terms, api_field, api_value, display_col):
     '''from a dataframe with the table display information, create a dictionary by field to match the database
     value to a value for use in the UI '''
@@ -30,6 +31,42 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
         print(e)
         return None
 
+def load_display_terms(display_terms_file):
+    try:
+        display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
+        display_terms_dict = get_display_dictionary(display_terms, 'api_field', 'api_value', 'display_text')
+        return display_terms_dict
+    except Exception as e:
+        print(e)
+        return None
+
+
+# path to Data APIs and reference files / load data
+# Weekly Data from csv
+def load_weekly_data(weekly_csv, display_terms_dict):
+    try:
+        df = pd.read_csv(weekly_csv)
+        df = df.apply(pd.to_numeric, errors='ignore')
+
+        # convert date columns from object --> datetime datatypes as appropriate
+        datetime_cols_list = ['date_of_contact','date_and_time','ewdateterm'] #erep_local_dtime also dates, but currently an array
+        df[datetime_cols_list] = df[datetime_cols_list].apply(pd.to_datetime)
+        # Convert 1-to-1 fields to user friendly format using display terms dictionary
+        one_to_many_cols = ['reason_not_interested','erep_protdev_type']
+        for i in display_terms_dict.keys():
+            if i in df.columns:
+                if i not in one_to_many_cols: # exclude the cols containing one to many data
+                    df = df.merge(display_terms_dict[i], how='left', on=i)
+        # Get subset of consented patients
+        # get data subset of just consented patients
+        consented = df[df.consent_process_form_complete == 2].copy()
+        return df, consented
+    except Exception as e:
+        print(e)
+        return None, None
+
+
+# Load data from API for One-to-May data points per record ID
 def get_multi_row_data(json_api_url):
     ''' Take the adverse effects JSON and convert into a data frame for analysis.
 
@@ -54,6 +91,20 @@ def get_multi_row_data(json_api_url):
     except Exception as e:
         print(e)
         return None
+
+def load_multi_data(multi_row_json):
+    try:
+        multi_data = get_multi_row_data(multi_row_json)
+        multi_data = multi_data.apply(pd.to_numeric, errors='ignore')
+        multi_datetime_cols = ['erep_local_dtime','erep_ae_date','erep_onset_date','erep_resolution_date']
+        multi_data[multi_datetime_cols] = multi_data[multi_datetime_cols].apply(pd.to_datetime)
+
+        return multi_data
+    except Exception as e:
+        print(e)
+        return None
+
+
 # ----------------------------------------------------------------------------
 # Screening Tables
 # ----------------------------------------------------------------------------
@@ -94,7 +145,7 @@ def get_table_1(df):
         return t1_sum
     except Exception as e:
         print(e)
-        return None        
+        return None
 
 def get_table_2a(df, display_terms_t2a):
     # Get decline columns from dataframe where participant was not interested (participation_interest == 0)
@@ -245,11 +296,11 @@ def get_deviation_records(df, multi_data, display_terms_dict):
     # Convert deviation type to text
     deviation_terms = display_terms_dict['erep_protdev_type']
     deviation_terms.columns = ['erep_protdev_type','Deviation']
-    deviations = deviations.merge(deviation_terms, how='outer', on='erep_protdev_type')
+    deviations = deviations.merge(deviation_terms, how='left', on='erep_protdev_type')
 
     return deviations
 
-def get_deviations_by_center(df, deviations, display_terms_dict):
+# def get_deviations_by_center(df, deviations, display_terms_dict):
     dev_cols = ['record_id','redcap_data_access_group','screening_id','sp_v1_preop_date']
     baseline = df.dropna(subset=['sp_v1_preop_date'])[dev_cols]
     baseline = baseline.reset_index()
@@ -303,6 +354,64 @@ def get_deviations_by_center(df, deviations, display_terms_dict):
     baseline_total = baseline_total.rename(columns={'redcap_data_access_group_display':'Center Name'})
 
     return baseline_total
+
+def get_deviations_by_center(centers, df, deviations, display_terms_dict):
+    dev_cols = ['record_id','redcap_data_access_group_display','sp_v1_preop_date']
+    baseline = df.dropna(subset=['sp_v1_preop_date'])[dev_cols]
+    baseline = baseline.reset_index()
+
+    # Count consented patients who have had baseline visits
+    centers_baseline = baseline[['redcap_data_access_group_display','record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='baseline')
+
+    # Count patients who have an associated deviation
+    records_with_deviation = deviations.record_id.unique()
+    baseline_with_dev = baseline[baseline.record_id.isin(records_with_deviation)]
+    centers_baseline_dev = baseline_with_dev[['redcap_data_access_group_display','record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='patients_with_deviation')
+
+    # Add count of all deviations for a given center
+    center_count = pd.DataFrame(deviations.value_counts(subset=['redcap_data_access_group_display'])).reset_index()
+    center_count.columns =['redcap_data_access_group_display','total_dev']
+
+    # Get Deviation Pivot by center
+    centers_dev = centers.merge(display_terms_dict['erep_protdev_type'], how='cross')
+    dev_by_center = deviations[['record_id','Deviation', 'instance','redcap_data_access_group_display']]
+    dev_by_center = dev_by_center.groupby(by=['redcap_data_access_group_display','Deviation'],as_index=False).size()
+    centers_dev = centers_dev.merge(dev_by_center, how='outer', on=['redcap_data_access_group_display','Deviation']).fillna(0)
+    dev_by_center_pivot =  pd.pivot_table(centers_dev, index=["redcap_data_access_group_display"], columns=["Deviation"], values=["size"])
+    dev_by_center_pivot.columns = dev_by_center_pivot.columns.droplevel()
+    dev_by_center_pivot.columns.name = ''
+    dev_by_center_pivot = dev_by_center_pivot.reset_index()
+
+    # Merge data frames together
+    centers_all = centers
+    df_to_merge = [centers_baseline, centers_baseline_dev, center_count, dev_by_center_pivot]
+    for df in df_to_merge:
+        centers_all = centers_all.merge(df, how='left', on = 'redcap_data_access_group_display')
+
+    # Fill na with 0
+    centers_all = centers_all.fillna(0)
+
+    # treat numeric columns as ints
+    int_cols = centers_all.columns.drop('redcap_data_access_group_display')
+    centers_all[int_cols] = centers_all[int_cols].astype(int)
+
+    # Calculate % with deviations
+    centers_all['percent_baseline_with_dev'] = 100 * (centers_all['patients_with_deviation'] / centers_all['baseline'])
+    centers_all['percent_baseline_with_dev'] = centers_all['percent_baseline_with_dev'].map('{:,.2f}'.format)
+    centers_all['percent_baseline_with_dev'] = centers_all['percent_baseline_with_dev'].replace('nan','-')
+
+
+    # Rename and Reorder for display
+    rename_cols = ['Center', 'Patients',
+       '# With Deviation', 'Total Deviations', 'Informed Consent', 'Other',
+       'Protocol Deviation-QST', 'Protocol Deviation-blood drawo',
+       'Protocol Deviation-functional testing', 'Protocol Deviation-imaging',
+       'Visit timeline (outside protocol range)', '% with 1+ Deviation']
+    centers_all.columns = rename_cols
+    col_order = rename_cols[0:4] + rename_cols[-1:] + rename_cols[4:-1]
+    centers_all = centers_all[col_order]
+
+    return centers_all
 
 def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_range = 7):
     # Get deviations within last days range days
