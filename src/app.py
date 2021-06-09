@@ -158,6 +158,8 @@ table2b = get_table_2b(df, cutoff_date, end_report)
 table3_data, table3 = get_table_3(consented, today, 30)
 
 ## STUDY Status
+table4 = get_table_4(centers_df, consented, today)
+
 table5, table6 = get_tables_5_6(df)
 
 ## Deviations
@@ -277,7 +279,8 @@ tab1 = html.Div([
 tab2 = html.Div([
     dbc.Card([
         html.H5('Table 4. Ongoing Study Status'),
-        html.Div('Table to come further into study'),
+        html.Div([report_date_msg]),
+        html.Div(build_datatable(table4, 'table_4')),
     ],body=True),
     dbc.Card([
         html.H5('Table 5. Rescinded Consent'),

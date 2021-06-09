@@ -68,7 +68,7 @@ def load_weekly_data(weekly_csv, display_terms_dict):
                 df = df.merge(display_terms_dict[i], how='left', on=i)
         # Get subset of consented patients
         # get data subset of just consented patients
-        consented = df[df.consent_process_form_complete == 2].copy()
+        consented = df[df.record_id.notnull()].copy()
         return df, consented
     except Exception as e:
         print(e)
@@ -280,6 +280,52 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
 # ----------------------------------------------------------------------------
 # Study Status Tables
 # ----------------------------------------------------------------------------
+def get_table_4(centers, consented_patients, compare_date = datetime.now()):
+    # select table4 columns for patients with a record id
+    table4_cols = ["record_id", "redcap_data_access_group_display", "start_v1_preop","sp_surg_date",
+                   "start_v2_6wk","start_v3_3mo","start_6mo","start_12mo", 'ewdateterm']
+    table4 = consented_patients[table4_cols]
+
+    # Sort by record ID
+    table4 = table4.sort_values(by=['record_id'])
+
+    # Flag patients with complete surgeries
+    table4['sp_surg_date'] = table4['sp_surg_date'].apply(pd.to_datetime)
+    table4['surg_complete'] = table4['sp_surg_date'] < compare_date
+
+    # Convert Rescinded to boolean
+    table4['ewdateterm'] = table4['ewdateterm'].notnull()
+
+    # Aggregate table 4
+    agg_dict = {'record_id':'size',
+                'start_v1_preop':'sum','surg_complete':'sum','start_v2_6wk': 'sum',
+                'start_v3_3mo': 'sum', 'start_6mo': 'sum', 'start_12mo': 'sum','ewdateterm': 'sum',}
+    table4_agg = table4.groupby('redcap_data_access_group_display').agg(agg_dict).reset_index()
+
+    # Merge Centers list with aggregated data
+    table4_agg = centers.merge(table4_agg, how='outer', on = 'redcap_data_access_group_display')
+
+    # fill na with 0
+    table4_agg.fillna(0, inplace=True)
+
+    # treat numeric columns as ints
+    int_cols = table4_agg.columns.drop('redcap_data_access_group_display')
+    table4_agg[int_cols] = table4_agg[int_cols].astype(int)
+
+    # Rename columns
+    rename_cols_dict = {'redcap_data_access_group_display':'Center',
+                        'record_id': 'Consented',
+                        'start_v1_preop': 'Baseline',
+                        'surg_complete': 'Surgery Complete',
+                        'start_v2_6wk':'6 week',
+                        'start_v3_3mo': '3 Month',
+                        'start_6mo':'6 Month',
+                        'start_12mo':'12 Month',
+                        'ewdateterm':'Resc./Early Term.'}
+    table4_agg.rename(columns=rename_cols_dict, inplace = True)
+
+    return table4_agg
+
 def get_tables_5_6(df):
     # Get patients who rescinded consent, i.e. have a value in the 'ewdateterm' column
     rescinded = df.dropna(subset=['ewdateterm'])
