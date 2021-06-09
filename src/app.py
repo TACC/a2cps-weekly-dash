@@ -2,17 +2,17 @@
 # PYTHON LIBRARIES
 # ----------------------------------------------------------------------------
 
-# File Management
-import os # Operating system library
-import pathlib # file paths
-import json
-
-# Data Cleaning and transformations
-import pandas as pd
-import numpy as np
-import requests
-import datetime
-from datetime import datetime, timedelta
+# # File Management
+# import os # Operating system library
+# # import pathlib # file paths
+# import json
+#
+# # Data Cleaning and transformations
+# import pandas as pd
+# import numpy as np
+# import requests
+# import datetime
+# from datetime import datetime, timedelta
 
 # Dash Framework
 import dash
@@ -25,15 +25,13 @@ from dash.dependencies import Input, Output, State, ALL, MATCH
 
 
 # import local modules
+from config_settings import *
 from data_processing import *
-
+from styling import *
 
 # ----------------------------------------------------------------------------
-# CONFIG SETTINGS
+# APP Settings
 # ----------------------------------------------------------------------------
-DATA_PATH = pathlib.Path(__file__).parent.joinpath("data")
-ASSETS_PATH = pathlib.Path(__file__).parent.joinpath("assets")
-REQUESTS_PATHNAME_PREFIX = os.environ.get("REQUESTS_PATHNAME_PREFIX", "/")
 
 external_stylesheets_list = [dbc.themes.SANDSTONE] #  set any external stylesheets
 
@@ -44,77 +42,6 @@ app = dash.Dash(__name__,
                 requests_pathname_prefix=REQUESTS_PATHNAME_PREFIX,
                 )
 
-# ----------------------------------------------------------------------------
-# SECURITY FUNCTION
-# ----------------------------------------------------------------------------
-def get_django_user():
-    """
-    Utility function to retrieve logged in username
-    from Django
-    """
-    DJANGO_LOGIN_HOST = os.environ.get("DJANGO_LOGIN_HOST", None)
-    SESSIONS_API_KEY = os.environ.get("SESSIONS_API_KEY", None)
-    try:
-        if not DJANGO_LOGIN_HOST:
-            return True
-        session_id = request.cookies.get('sessionid')
-        if not session_id:
-            raise Exception("sessionid cookie is missing")
-        if not SESSIONS_API_KEY:
-            raise Exception("SESSIONS_API_KEY not configured")
-        api = "{django_login_host}/api/sessions_api/".format(
-            django_login_host=DJANGO_LOGIN_HOST
-        )
-        response = requests.get(
-            api,
-            params={
-                "session_key": session_id,
-                "sessions_api_key": SESSIONS_API_KEY
-            }
-        )
-        return response.json()
-    except Exception as e:
-        print(e)
-        return None
-
-# ----------------------------------------------------------------------------
-# STYLING
-# ----------------------------------------------------------------------------
-
-TACC_IFRAME_SIZE = {
-    "max-width" : "1060px", "max-height" : "980px" # THESE ARE SET TO FIT IN THE 1080x1000 TACC iFRAME.  CAN BE REMOVED IF THOSE CONSTRAINTS COME OFF
-}
-
-CONTENT_STYLE = {
-    "padding": "2rem 1rem",
-    "font-family": 'Arial, Helvetica, sans-serif',
-}
-
-export_style = '''
-    position:absolute;
-    right:25px;
-    bottom:-55px;
-    font-family: Arial, Helvetica, sans-serif;
-    margin: 10px;
-    color: #fff;
-    background-color: #17a2b8;
-    border-color: #17a2b8;
-    display: inline-block;
-    font-weight: 400;
-    text-align: center;
-    white-space: nowrap;
-    vertical-align: middle;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    border: 1px solid transparent;
-    padding: .375rem .75rem;
-    font-size: 1rem;
-    line-height: 1.5;
-    border-radius: .25rem;
-    transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
-'''
 
 
 # ----------------------------------------------------------------------------
