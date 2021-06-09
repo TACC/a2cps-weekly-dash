@@ -127,9 +127,9 @@ multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=advers
 
 
 # Get dataframes
-display_terms_dict =  load_display_terms(ASSETS_PATH, display_terms_file) 
+display_terms, display_terms_dict, display_terms_dict_multi =  load_display_terms(ASSETS_PATH, display_terms_file)
 df, consented = load_weekly_data(weekly_csv, display_terms_dict)
-multi_data = load_multi_data(multi_row_json)
+multi_data = load_multi_data(multi_row_json, display_terms_dict_multi)
 
 centers_list = df.redcap_data_access_group_display.unique()
 centers_df = pd.DataFrame(centers_list, columns = ['redcap_data_access_group_display'])
@@ -150,7 +150,7 @@ report_date_msg = 'Report generated on ' + str(datetime.today().date())
 ## SCREENING TABLES
 table1 = get_table_1(df)
 
-display_terms_t2a = display_terms_dict['reason_not_interested']
+display_terms_t2a = display_terms_dict_multi['reason_not_interested']
 table2a = get_table_2a(df, display_terms_t2a)
 
 table2b = get_table_2b(df, cutoff_date, end_report)
@@ -158,13 +158,19 @@ table2b = get_table_2b(df, cutoff_date, end_report)
 table3_data, table3 = get_table_3(consented, today, 30)
 
 ## STUDY Status
+table4 = get_table_4(centers_df, consented, today)
+
 table5, table6 = get_tables_5_6(df)
 
-## Deviations & Adverse Events
-deviations = get_deviation_records(df, multi_data, display_terms_dict)
-table7a = get_deviations_by_center(centers_df, consented, deviations, display_terms_dict)
-# table7a = get_deviations_by_center(df, deviations, display_terms_dict) OLD CODE
+## Deviations
+deviations = get_deviation_records(df, multi_data, display_terms_dict_multi)
+table7a = get_deviations_by_center(centers_df, consented, deviations, display_terms_dict_multi)
 table7b = get_table7b_timelimited(deviations)
+
+## Adverse Events
+adverse_events = get_adverse_event_records(df, multi_data, display_terms_dict_multi)
+table8a = get_adverse_events_by_center(centers_df, df, adverse_events, display_terms_dict_multi)
+table8b = get_table_8b(adverse_events, today)
 
 ## Demographics
 
@@ -273,7 +279,8 @@ tab1 = html.Div([
 tab2 = html.Div([
     dbc.Card([
         html.H5('Table 4. Ongoing Study Status'),
-        html.Div('Table to come further into study'),
+        html.Div([report_date_msg]),
+        html.Div(build_datatable(table4, 'table_4')),
     ],body=True),
     dbc.Card([
         html.H5('Table 5. Rescinded Consent'),
@@ -318,12 +325,14 @@ tab3 = html.Div([
     ]),
     dbc.Card([
         html.H5('Table 8.a. Adverse Events'),
-        html.Div('No Data to Report at this time')
+        html.Div([report_date_msg, '. Table is cumulative over study']),
+        html.Div(build_datatable(table8a, 'table_8a')),
         # html.Div(build_datatable(t2_site_count, 'table_2')),
     ],body=True),
     dbc.Card([
         html.H5('Table 8.b. Description of Adverse Events'),
-        html.Div('No Data to Report at this time')
+        html.Div([report_date_msg, '. Table includes observations from the past week.']),
+        html.Div(build_datatable(table8b, 'table_8b')),
     ],body=True),
 ])
 

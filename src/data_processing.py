@@ -38,8 +38,16 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
 def load_display_terms(ASSETS_PATH, display_terms_file):
     try:
         display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
-        display_terms_dict = get_display_dictionary(display_terms, 'api_field', 'api_value', 'display_text')
-        return display_terms_dict
+
+        # Get display terms dictionary for one-to-one records
+        display_terms_uni = display_terms[display_terms.multi == 0]
+        display_terms_dict = get_display_dictionary(display_terms_uni, 'api_field', 'api_value', 'display_text')
+
+        # Get display terms dictionary for one-to-many records
+        display_terms_multi = display_terms[display_terms.multi == 1]
+        display_terms_dict_multi = get_display_dictionary(display_terms_multi, 'api_field', 'api_value', 'display_text')
+
+        return display_terms, display_terms_dict, display_terms_dict_multi
     except Exception as e:
         print(e)
         return None
@@ -55,22 +63,18 @@ def load_weekly_data(weekly_csv, display_terms_dict):
         # convert date columns from object --> datetime datatypes as appropriate
         datetime_cols_list = ['date_of_contact','date_and_time','ewdateterm'] #erep_local_dtime also dates, but currently an array
         df[datetime_cols_list] = df[datetime_cols_list].apply(pd.to_datetime)
-        # Convert 1-to-1 fields to user friendly format using display terms dictionary
-        one_to_many_cols = ['reason_not_interested','erep_protdev_type']
         for i in display_terms_dict.keys():
             if i in df.columns:
-                if i not in one_to_many_cols: # exclude the cols containing one to many data
-                    df = df.merge(display_terms_dict[i], how='left', on=i)
+                df = df.merge(display_terms_dict[i], how='left', on=i)
         # Get subset of consented patients
         # get data subset of just consented patients
-        consented = df[df.consent_process_form_complete == 2].copy()
+        consented = df[df.record_id.notnull()].copy()
         return df, consented
     except Exception as e:
         print(e)
         return None, None
 
-
-# Load data from API for One-to-May data points per record ID
+# Load data from API for One-to-Many data points per record ID
 def get_multi_row_data(json_api_url):
     ''' Take the adverse effects JSON and convert into a data frame for analysis.
 
@@ -82,8 +86,8 @@ def get_multi_row_data(json_api_url):
 
     df = pd.DataFrame() # create empty dataframe
     try:
-        adv_effects_dict = requests.get(json_api_url).json()
-        for i in adv_effects_dict:
+        multi_dict = requests.get(json_api_url).json()
+        for i in multi_dict:
             for key in i.keys():
                 df_key = pd.DataFrame.from_dict(i[key], orient='index') #.reset_index()
                 seq = [key] * len(df_key)
@@ -96,13 +100,20 @@ def get_multi_row_data(json_api_url):
         print(e)
         return None
 
-      
-def load_multi_data(multi_row_json):
+def load_multi_data(multi_row_json, display_terms_dict_multi):
     try:
+        # Load data and coerce to numeric
         multi_data = get_multi_row_data(multi_row_json)
         multi_data = multi_data.apply(pd.to_numeric, errors='ignore')
+
+        # convert date columns from object --> datetime datatypes as appropriate
         multi_datetime_cols = ['erep_local_dtime','erep_ae_date','erep_onset_date','erep_resolution_date']
         multi_data[multi_datetime_cols] = multi_data[multi_datetime_cols].apply(pd.to_datetime)
+
+        # Convert numeric values to display values using dictionary
+        for i in display_terms_dict_multi.keys():
+            if i in multi_data.columns:
+                multi_data = multi_data.merge(display_terms_dict_multi[i], how='left', on=i)
 
         return multi_data
     except Exception as e:
@@ -194,6 +205,10 @@ def get_table_2a(df, display_terms_t2a):
     t2_site_count_detailed = t2_site_count.merge(t2_reasons, on='redcap_data_access_group_display')
     t2_site_count_detailed = t2_site_count_detailed.rename(columns = {'redcap_data_access_group_display':'Center Name'})
 
+    # Fill missing data with 0 and sum across all sites
+    t2_site_count_detailed = t2_site_count_detailed.fillna(0)
+    t2_site_count_detailed.loc['All Sites']= t2_site_count_detailed.sum(numeric_only=True, axis=0)
+
     return t2_site_count_detailed
 
 def get_table_2b(df, start_report, end_report):
@@ -265,24 +280,79 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
 # ----------------------------------------------------------------------------
 # Study Status Tables
 # ----------------------------------------------------------------------------
+def get_table_4(centers, consented_patients, compare_date = datetime.now()):
+    # select table4 columns for patients with a record id
+    table4_cols = ["record_id", "redcap_data_access_group_display", "start_v1_preop","sp_surg_date",
+                   "start_v2_6wk","start_v3_3mo","start_6mo","start_12mo", 'ewdateterm']
+    table4 = consented_patients[table4_cols]
+
+    # Sort by record ID
+    table4 = table4.sort_values(by=['record_id'])
+
+    # Flag patients with complete surgeries
+    table4['sp_surg_date'] = table4['sp_surg_date'].apply(pd.to_datetime)
+    table4['surg_complete'] = table4['sp_surg_date'] < compare_date
+
+    # Convert Rescinded to boolean
+    table4['ewdateterm'] = table4['ewdateterm'].notnull()
+
+    # Aggregate table 4
+    agg_dict = {'record_id':'size',
+                'start_v1_preop':'sum','surg_complete':'sum','start_v2_6wk': 'sum',
+                'start_v3_3mo': 'sum', 'start_6mo': 'sum', 'start_12mo': 'sum','ewdateterm': 'sum',}
+    table4_agg = table4.groupby('redcap_data_access_group_display').agg(agg_dict).reset_index()
+
+    # Merge Centers list with aggregated data
+    table4_agg = centers.merge(table4_agg, how='outer', on = 'redcap_data_access_group_display')
+
+    # fill na with 0
+    table4_agg.fillna(0, inplace=True)
+
+    # treat numeric columns as ints
+    int_cols = table4_agg.columns.drop('redcap_data_access_group_display')
+    table4_agg[int_cols] = table4_agg[int_cols].astype(int)
+
+    # Rename columns
+    rename_cols_dict = {'redcap_data_access_group_display':'Center',
+                        'record_id': 'Consented',
+                        'start_v1_preop': 'Baseline',
+                        'surg_complete': 'Surgery Complete',
+                        'start_v2_6wk':'6 week',
+                        'start_v3_3mo': '3 Month',
+                        'start_6mo':'6 Month',
+                        'start_12mo':'12 Month',
+                        'ewdateterm':'Resc./Early Term.'}
+    table4_agg.rename(columns=rename_cols_dict, inplace = True)
+
+    return table4_agg
+
 def get_tables_5_6(df):
     # Get patients who rescinded consent, i.e. have a value in the 'ewdateterm' column
     rescinded = df.dropna(subset=['ewdateterm'])
-    rescinded_cols = ['redcap_data_access_group_display','record_id','date_and_time','ewdateterm','ewprimaryreason','ewcomments','sp_surg_date']
+    rescinded_cols = ['redcap_data_access_group_display','record_id','date_and_time','ewdateterm','ewprimaryreason_display','ewcomments','sp_surg_date']
     rescinded = rescinded[rescinded_cols]
+
     # Display record id as int
     rescinded.record_id = rescinded.record_id.astype('int32')
+
+    # convert datetime columns to just date
+    for date_col in ['date_and_time','ewdateterm']:
+        rescinded[date_col] = rescinded[date_col].dt.date
+
     # TO DO: need to convert reasons to text reasons
     # Rename columns to user friendly versions
     rescinded.columns =['Center Name', 'Record ID', 'Consent Date',
        'Early Termination Date', 'Reason', 'Comments', 'sp_surg_date']
+
     # Split dataset into leaving before pr after surgery
     rescinded_pre_surgery = rescinded[rescinded.sp_surg_date.isna()].drop(['sp_surg_date'],axis=1)
     if len(rescinded_pre_surgery) == 0:
             rescinded_pre_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
+
     rescinded_post_surgery = rescinded.dropna(subset=['sp_surg_date'])
     if len(rescinded_post_surgery) == 0:
             rescinded_post_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
+
     return rescinded_pre_surgery, rescinded_post_surgery
 
 # ----------------------------------------------------------------------------
@@ -441,6 +511,114 @@ def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_ra
     table7b['Deviation Date'] = table7b['Deviation Date'].dt.strftime('%m/%d/%Y')
 
     return table7b
+
+def get_adverse_event_records(df, multi_data, display_terms_dict_multi):
+    # Get Data on Adverse Events
+    adverse_event_cols = ['record_id', 'instance','erep_ae_yn','erep_ae_relation', 'erep_ae_severity', 'erep_ae_serious',
+            'erep_onset_date', 'erep_ae_desc', 'erep_action_taken', 'erep_outcome']
+    adverse_events = multi_data[multi_data.erep_ae_yn==1][adverse_event_cols]
+
+    # Merge adverse events with center info
+    adverse_events = adverse_events.merge(df[['redcap_data_access_group_display','record_id']], how='left', on = 'record_id')
+    for num_col in ['erep_ae_yn', 'erep_ae_severity', 'erep_ae_relation', 'erep_ae_serious']:
+        adverse_events = adverse_events.merge(display_terms_dict_multi[num_col], how='left', on=num_col)
+
+    return adverse_events
+
+def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapping):
+    # Select subset of patients who have had baseline visits (sp_v1_preop_date not null), using record_id as unique identifier
+    baseline_cols = ['record_id','redcap_data_access_group_display','sp_v1_preop_date']
+    baseline = df.dropna(subset=['sp_v1_preop_date'])[baseline_cols]
+    baseline = baseline.reset_index()
+
+    # Count consented patients who have had baseline visits
+    centers_baseline = baseline[['redcap_data_access_group_display','record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='patients_baseline')
+
+    # Count patients who have an adverse events
+    records_with_adverse_events = adverse_events.record_id.unique()
+    baseline_with_ae = baseline[baseline.record_id.isin(records_with_adverse_events)]
+    centers_baseline_ae = baseline_with_ae[['redcap_data_access_group_display','record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='patients_with_ae')
+
+    # Add count of all adverse events for a given center
+    center_count_ae = pd.DataFrame(adverse_events.value_counts(subset=['redcap_data_access_group_display'])).reset_index()
+    center_count_ae.columns =['redcap_data_access_group_display','total_ae']
+
+    # Merge data frames together
+    centers_ae = centers
+    df_to_merge = [centers_baseline, centers_baseline_ae, center_count_ae]
+    for df in df_to_merge:
+        centers_ae = centers_ae.merge(df, how='left', on = 'redcap_data_access_group_display')
+
+    # Get data for variables at center level, pivot and merge with centers data
+    ae_api_fields = ['erep_ae_severity' ,'erep_ae_relation']
+    for ae_field in ae_api_fields:
+        ae_field_display = ae_field +'_display'
+        centers_ae_field = centers.merge(display_terms_mapping[ae_field], how='cross')
+        ae_by_center = adverse_events[['record_id',ae_field_display, 'instance','redcap_data_access_group_display']]
+        ae_by_center = ae_by_center.groupby(by=['redcap_data_access_group_display',ae_field_display],as_index=False).size()
+        centers_ae_field = centers_ae_field.merge(ae_by_center, how='outer', on=['redcap_data_access_group_display',ae_field_display]).fillna(0)
+        centers_ae_field = centers_ae_field.drop(ae_field, axis=1)
+        ae_by_center_pivot =  pd.pivot_table(centers_ae_field, index=["redcap_data_access_group_display"], columns=[ae_field_display], values=["size"])
+        ae_by_center_pivot.columns = ae_by_center_pivot.columns.droplevel()
+        ae_by_center_pivot.columns.name = ''
+        ae_by_center_pivot = ae_by_center_pivot.reset_index()
+        centers_ae = centers_ae.merge(ae_by_center_pivot, how = 'left', on = 'redcap_data_access_group_display')
+
+    # Fill na with 0
+    centers_ae = centers_ae.fillna(0)
+
+    # treat numeric columns as ints
+    int_cols = centers_ae.columns.drop('redcap_data_access_group_display')
+    centers_ae[int_cols] = centers_ae[int_cols].astype(int)
+
+    # Calculate % with adverse events
+    centers_ae['percent_baseline_with_ae'] = 100 * (centers_ae['patients_with_ae'] / centers_ae['patients_baseline'])
+    centers_ae['percent_baseline_with_ae'] = centers_ae['percent_baseline_with_ae'].map('{:,.2f}'.format)
+    centers_ae['percent_baseline_with_ae'] = centers_ae['percent_baseline_with_ae'].replace('0.00','-')
+
+    # Rename and Reorder for display
+    rename_cols = ['Center', 'Patients',
+       '# With Adverse Event', 'Total # Events',
+       'Mild', 'Moderate', 'Severe',
+       'Definitely Related', 'Not Related', 'Possibly/Probably Related',
+        '% with 1+ Adverse Events']
+    centers_ae.columns = rename_cols
+    col_order = rename_cols[0:3] + rename_cols[-1:] + rename_cols[4:8] + rename_cols[9:10]  + rename_cols[8:9] + rename_cols[3:4]
+    centers_ae = centers_ae[col_order]
+
+    return centers_ae
+
+def get_table_8b(event_records, end_report, report_days = 7):
+    table8b_cols_dict = {'redcap_data_access_group_display':'Center',
+                    'record_id':'PID',
+                    'erep_onset_date':'AE Date',
+                   'erep_ae_severity_display':'Severity',
+                    'erep_ae_relation_display':'Relationship',
+#                     'erep_ae_serious_display':'Serious',
+                  'erep_ae_desc':'Description',
+                    'erep_action_taken':'Action',
+                    'erep_outcome':'Outcome'}
+    table8b_cols = table8b_cols_dict.keys()
+
+    # Get report start date
+    start_report = end_report - timedelta(days=report_days)
+
+    # Get records that are adverse envet records in the time frame of report
+    table8b = event_records[(event_records.erep_ae_yn==1) & (event_records.erep_onset_date > start_report) &  (event_records.erep_onset_date <= end_report) ][table8b_cols]
+
+    # convert datetime column to show date
+    table8b.erep_onset_date = table8b.erep_onset_date.dt.strftime('%m/%d/%Y')
+
+    # Use col dict to rename cols for display
+    table8b = table8b.rename(columns=table8b_cols_dict)
+
+    if len(table8b) <1 :
+        return pd.DataFrame(columns = ['No Adverse Events in the reporting timeframe'])
+    else:
+        table8b = table8b.sort_values(by=['AE Date'], ascending=False)
+
+
+    return table8b
 
 # ----------------------------------------------------------------------------
 # Demographics Tables
