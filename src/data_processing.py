@@ -121,6 +121,31 @@ def load_multi_data(multi_row_json, display_terms_dict_multi):
         return None
 
 # ----------------------------------------------------------------------------
+# Get dataframes and parameters
+# ----------------------------------------------------------------------------
+
+def get_data_for_page(ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
+    # Get dataframes
+    display_terms, display_terms_dict, display_terms_dict_multi =  load_display_terms(ASSETS_PATH, display_terms_file)
+    df, consented = load_weekly_data(weekly_csv, display_terms_dict)
+    multi_data = load_multi_data(multi_row_json, display_terms_dict_multi)
+
+    centers_list = df.redcap_data_access_group_display.unique()
+    centers_df = pd.DataFrame(centers_list, columns = ['redcap_data_access_group_display'])
+
+    return display_terms, display_terms_dict, display_terms_dict_multi, df, consented, multi_data, centers_df
+
+
+def get_time_parameters(end_report, report_days_range = 7):
+    today = datetime.now()
+    start_report = end_report - timedelta(days=report_days_range)
+    start_report_text = str(start_report.date()) #dt.strftime('%m/%d/%Y')
+    end_report_text = str(end_report.date()) #dt.strftime('%m/%d/%Y')
+    report_range_msg = 'This report generated on: ' + str(datetime.today().date()) + ' covering the previous ' + str(report_days_range) + ' days.'
+    report_date_msg = 'This report generated on: ' + str(datetime.today().date())
+    return today, start_report, end_report, report_date_msg, report_range_msg
+
+# ----------------------------------------------------------------------------
 # Screening Tables
 # ----------------------------------------------------------------------------
 def get_table_1(df):
@@ -670,3 +695,50 @@ def rollup_demo_data(demo_df, demo_col, display_terms_dict, display_term_key):
     df_all['Percent'] = df_all['Percent'].map("{:.2%}".format)
     df_all.loc['All'] = df_all.sum(numeric_only=True, axis=0)
     return df_all
+
+# ----------------------------------------------------------------------------
+# GET DATA FOR PAGE
+# ----------------------------------------------------------------------------
+
+def get_page_data(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
+    ''' Load all the data for the page'''
+    display_terms, display_terms_dict, display_terms_dict_multi, df, consented, multi_data, centers_df  = get_data_for_page(ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+    today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
+
+    ## SCREENING TABLES
+    table1 = get_table_1(df)
+
+    display_terms_t2a = display_terms_dict_multi['reason_not_interested']
+    table2a = get_table_2a(df, display_terms_t2a)
+
+    table2b = get_table_2b(df, start_report, end_report)
+
+    table3_data, table3 = get_table_3(consented, today, 30)
+
+    ## STUDY Status
+    table4 = get_table_4(centers_df, consented, today)
+
+    table5, table6 = get_tables_5_6(df)
+
+    ## Deviations
+    deviations = get_deviation_records(df, multi_data, display_terms_dict_multi)
+    table7a = get_deviations_by_center(centers_df, consented, deviations, display_terms_dict_multi)
+    table7b = get_table7b_timelimited(deviations)
+
+    ## Adverse Events
+    adverse_events = get_adverse_event_records(df, multi_data, display_terms_dict_multi)
+    table8a = get_adverse_events_by_center(centers_df, df, adverse_events, display_terms_dict_multi)
+    table8b = get_table_8b(adverse_events, today)
+
+    ## Demographics
+
+    demographics = get_demographic_data(consented)
+    # get subset of active patients
+    demo_active = demographics[demographics['Status']=='Active']
+
+    sex  =  rollup_demo_data(demo_active, 'Sex', display_terms_dict, 'sex')
+    race = rollup_demo_data(demo_active, 'Race', display_terms_dict, 'dem_race')
+    ethnicity = rollup_demo_data(demo_active, 'Ethnicity', display_terms_dict, 'ethnic')
+    age = pd.DataFrame(demo_active.Age.describe().reset_index())
+
+    return report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age
