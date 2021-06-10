@@ -43,12 +43,19 @@ multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=advers
 # ----------------------------------------------------------------------------
 
 def build_datatable(data_source, table_id):
+    if(data_source.columns.nlevels == 2):
+        columns_list = []
+        for i in data_source.columns:
+            columns_list.append({"name": [i[0],i[1]], "id": i[1]})
+        data_source.columns = data_source.columns.droplevel()
+    else:
+        columns_list = [{"name": i, "id": i} for i in data_source.columns]
     new_datatable =  dt.DataTable(
             id = table_id,
             data=data_source.to_dict('records'),
-            columns=[{"name": i, "id": i} for i in data_source.columns],
+            columns=columns_list,
             css=[{'selector': '.row', 'rule': 'margin: 0; flex-wrap: nowrap'},
-                {'selector':'.export','rule':export_style }
+                 {'selector':'.export','rule':export_style }
                 # {'selector':'.export','rule':'position:absolute;right:25px;bottom:-35px;font-family:Arial, Helvetica, sans-serif,border-radius: .25re'}
                 ],
             style_cell= {
@@ -67,9 +74,9 @@ def build_datatable(data_source, table_id):
             },
             style_table={'overflowX': 'auto'},
             export_format="csv",
+            merge_duplicate_headers=True,
         )
     return new_datatable
-
 # ----------------------------------------------------------------------------
 # TABS
 # ----------------------------------------------------------------------------
@@ -185,7 +192,6 @@ def build_tabs(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_r
             html.H5('Table 8.a. Adverse Events'),
             html.Div([report_date_msg, '. Table is cumulative over study']),
             html.Div(build_datatable(table8a, 'table_8a')),
-            # html.Div(build_datatable(t2_site_count, 'table_2')),
         ],body=True),
         dbc.Card([
             html.H5('Table 8.b. Description of Adverse Events'),

@@ -602,14 +602,23 @@ def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapp
     centers_ae['percent_baseline_with_ae'] = centers_ae['percent_baseline_with_ae'].replace('0.00','-')
 
     # Rename and Reorder for display
-    rename_cols = ['Center', 'Patients',
-       '# With Adverse Event', 'Total # Events',
-       'Mild', 'Moderate', 'Severe',
-       'Definitely Related', 'Not Related', 'Possibly/Probably Related',
-        '% with 1+ Adverse Events']
+    rename_cols =[('', 'Center'),
+                 ('', 'Patients'),
+                 ('', '# With Adverse Event'),
+                 ('', '% with 1+ Adverse Events'),
+                 ('Severity', 'Mild'),
+                 ('Severity', 'Moderate'),
+                 ('Severity', 'Severe'),
+                 ('Relationship', 'Definitely Related'),
+                 ('Relationship', 'Possibly/Probably Related'),
+                 ('Relationship', 'Not Related'),
+                 ('', 'Total # Events')]
     centers_ae.columns = rename_cols
     col_order = rename_cols[0:3] + rename_cols[-1:] + rename_cols[4:8] + rename_cols[9:10]  + rename_cols[8:9] + rename_cols[3:4]
     centers_ae = centers_ae[col_order]
+
+    # Convert columns to MultiIndex
+    centers_ae.columns = pd.MultiIndex.from_tuples(centers_ae.columns)
 
     return centers_ae
 
