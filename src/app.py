@@ -9,13 +9,18 @@ import dash_bootstrap_components as dbc
 import dash_table as dt
 import dash_daq as daq
 from dash.dependencies import Input, Output, State, ALL, MATCH
-
+from dash.exceptions import PreventUpdate
+from dash_extensions import Download
+from dash_extensions.snippets import send_file
 
 # import local modules
 from config_settings import *
 from data_processing import *
 from styling import *
 
+# for export
+import io
+import flask
 # ----------------------------------------------------------------------------
 # APP Settings
 # ----------------------------------------------------------------------------
@@ -227,19 +232,24 @@ def build_tabs(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_r
 def serve_layout():
     try:
         tab1, tab2, tab3, tab4 = build_tabs(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
-        page_tabs = dcc.Tabs(id='tabs_tables', children=[
+        page_tabs = html.Div([
+                    dcc.Tabs(id='tabs_tables', children=[
                         dcc.Tab(label='Screening', children=tab1),
                         dcc.Tab(label='Study Status', children=tab2),
                         dcc.Tab(label='Deviations & Adverse Events', children=tab3),
                         dcc.Tab(label='Demographics', children=tab4),
                     ]),
+                    ])
 
     except:
-        page_tabs = [html.Div(['There has been a problem accessing the data for this Report.'])]
+        page_tabs = html.Div(['There has been a problem accessing the data for this Report.'])
     s_layout = html.Div([
+        Download(id="download-dataframe-xlxs"),
         html.Div([
+            html.Button("Download Report as Excel",n_clicks=0, id="btn_xlxs",style =EXCEL_EXPORT_STYLE ),
             html.H2(['A2CPS Weekly Report']),
-            page_tabs[0],
+            html.Div(id='download-msg'),
+            page_tabs,
         ]
         , style =CONTENT_STYLE)
     ],style=TACC_IFRAME_SIZE)
@@ -249,9 +259,54 @@ app.layout = serve_layout
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
+# Create excel spreadsheel
+# Download Data
+@app.callback(
+        Output("download-dataframe-xlxs", "data"),
+        [Input("btn_xlxs", "n_clicks")],
+        [State('table_1','data'), State('table_2a','data'),
+        State('table_2b','data'), State('table_3','data'),
+        State('table_4','data'), State('table_5','data'),
+        State('table_6','data'),
+        State('table_7a','data'),
+        State('table_7b','data'),
+        State('table_8a','data'),
+        State('table_8b','data'),
+        State('table_9a','data'),
+        State('table_9b','data'),
+        State('table_9c','data'),
+        State('table_9d','data')
+        ],
+        )
+def generate_xlsx(n_clicks,table_1,table_2a,table_2b,table_3,table_4,table_5,table_6,table_7a,table_7b,table_8a,table_8b,table_9a,table_9b,table_9c,table_9d):
+    if n_clicks == 0:
+        raise PreventUpdate
+    else:
+        table_data = (table_1,table_2a,table_2b,table_3,table_4,table_5,table_6,table_7a,table_7b,table_8a,table_8b,table_9a,table_9b,table_9c,table_9d
+        )
+        excel_sheet_name = ('Subjects Screened','Reasons for Declining',
+                            'Declining Comments','Subjects Consented',
+                            'Study Status','Rescinded Consent',
+                            'Early Termination',
+                            'Protocol Deviations','Deviation Descriptionss',
+                            'Adverse Events','Event Descriptions',
+                            'Gemder','Race','Ethnicity ','Age')
+        tables = tuple(zip(table_data, excel_sheet_name))
+
+        today = datetime.now().strftime('%Y_%m_%d')
+        download_filename = datetime.now().strftime('%Y_%m_%d') + '_a2cps_weekly_report.xlsx'
+
+        writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
+        for i in range(0,len(tables)):
+            df = pd.DataFrame(tables[i][0])
+            if len(df) == 0 :
+                df = pd.DataFrame(['No data for this table'])
+            df.to_excel(writer, sheet_name=tables[i][1], index = False)
+        writer.save()
+
+        return send_file(writer, download_filename)
 
 
-# ----------------------------------------------------------------------------
 # RUN APPLICATION
 # ----------------------------------------------------------------------------
 
