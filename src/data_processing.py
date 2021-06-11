@@ -496,6 +496,10 @@ def get_deviations_by_center(centers, df, deviations, display_terms_dict):
     int_cols = centers_all.columns.drop('redcap_data_access_group_display')
     centers_all[int_cols] = centers_all[int_cols].astype(int)
 
+    # Add summary row
+    centers_all.loc['All']= centers_all.sum(numeric_only=True, axis=0)
+    centers_all.loc['All','redcap_data_access_group_display'] = 'All Sites'
+
     # Calculate % with deviations
     centers_all['percent_baseline_with_dev'] = 100 * (centers_all['patients_with_deviation'] / centers_all['baseline'])
     centers_all['percent_baseline_with_dev'] = centers_all['percent_baseline_with_dev'].map('{:,.2f}'.format)
@@ -749,5 +753,8 @@ def get_page_data(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
     race = rollup_demo_data(demo_active, 'Race', display_terms_dict, 'dem_race')
     ethnicity = rollup_demo_data(demo_active, 'Ethnicity', display_terms_dict, 'ethnic')
     age = pd.DataFrame(demo_active.Age.describe().reset_index())
+    age['Age'] = np.where((age['Age'] % 1 == 0), age['Age'].astype(int), age['Age'].round(2))
+    age['Age'] = age['Age'].astype('str')
+    age['Age'] = age['Age'].replace(".0", "",regex=True)
 
     return report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age

@@ -12,7 +12,8 @@ CONTENT_STYLE = {
 }
 
 EXCEL_EXPORT_STYLE = {
-    "float": "right"
+    "float": "right",
+    "margin-right": "15px",
 }
 
 export_style = '''

@@ -1,0 +1,17 @@
+/*
+----------------------------------------------------------------------------
+CSS STYLING
+----------------------------------------------------------------------------
+*/
+H3 {
+  border-style: solid;
+  border-width: 2px 0px;
+  margin-top: 15px;
+}
+
+@media print {
+  .print-hide {
+    display: none;
+  }
+  footer {page-break-after: always;}
+}
