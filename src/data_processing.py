@@ -496,6 +496,10 @@ def get_deviations_by_center(centers, df, deviations, display_terms_dict):
     int_cols = centers_all.columns.drop('redcap_data_access_group_display')
     centers_all[int_cols] = centers_all[int_cols].astype(int)
 
+    # Add summary row
+    centers_all.loc['All']= centers_all.sum(numeric_only=True, axis=0)
+    centers_all.loc['All','redcap_data_access_group_display'] = 'All Sites'
+
     # Calculate % with deviations
     centers_all['percent_baseline_with_dev'] = 100 * (centers_all['patients_with_deviation'] / centers_all['baseline'])
     centers_all['percent_baseline_with_dev'] = centers_all['percent_baseline_with_dev'].map('{:,.2f}'.format)
@@ -602,14 +606,23 @@ def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapp
     centers_ae['percent_baseline_with_ae'] = centers_ae['percent_baseline_with_ae'].replace('0.00','-')
 
     # Rename and Reorder for display
-    rename_cols = ['Center', 'Patients',
-       '# With Adverse Event', 'Total # Events',
-       'Mild', 'Moderate', 'Severe',
-       'Definitely Related', 'Not Related', 'Possibly/Probably Related',
-        '% with 1+ Adverse Events']
+    rename_cols =[('', 'Center'),
+                 ('', 'Patients'),
+                 ('', '# With Adverse Event'),
+                 ('', '% with 1+ Adverse Events'),
+                 ('Severity', 'Mild'),
+                 ('Severity', 'Moderate'),
+                 ('Severity', 'Severe'),
+                 ('Relationship', 'Definitely Related'),
+                 ('Relationship', 'Possibly/Probably Related'),
+                 ('Relationship', 'Not Related'),
+                 ('', 'Total # Events')]
     centers_ae.columns = rename_cols
     col_order = rename_cols[0:3] + rename_cols[-1:] + rename_cols[4:8] + rename_cols[9:10]  + rename_cols[8:9] + rename_cols[3:4]
     centers_ae = centers_ae[col_order]
+
+    # Convert columns to MultiIndex
+    centers_ae.columns = pd.MultiIndex.from_tuples(centers_ae.columns)
 
     return centers_ae
 
@@ -740,5 +753,8 @@ def get_page_data(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
     race = rollup_demo_data(demo_active, 'Race', display_terms_dict, 'dem_race')
     ethnicity = rollup_demo_data(demo_active, 'Ethnicity', display_terms_dict, 'ethnic')
     age = pd.DataFrame(demo_active.Age.describe().reset_index())
+    age['Age'] = np.where((age['Age'] % 1 == 0), age['Age'].astype(int), age['Age'].round(2))
+    age['Age'] = age['Age'].astype('str')
+    age['Age'] = age['Age'].replace(".0", "",regex=True)
 
     return report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age

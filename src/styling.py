@@ -11,6 +11,11 @@ CONTENT_STYLE = {
     "font-family": 'Arial, Helvetica, sans-serif',
 }
 
+EXCEL_EXPORT_STYLE = {
+    "float": "right",
+    "margin-right": "15px",
+}
+
 export_style = '''
     position:absolute;
     right:25px;

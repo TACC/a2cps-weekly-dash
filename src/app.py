@@ -9,13 +9,18 @@ import dash_bootstrap_components as dbc
 import dash_table as dt
 import dash_daq as daq
 from dash.dependencies import Input, Output, State, ALL, MATCH
-
+from dash.exceptions import PreventUpdate
+from dash_extensions import Download
+from dash_extensions.snippets import send_file
 
 # import local modules
 from config_settings import *
 from data_processing import *
 from styling import *
 
+# for export
+import io
+import flask
 # ----------------------------------------------------------------------------
 # APP Settings
 # ----------------------------------------------------------------------------
@@ -42,13 +47,20 @@ multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=advers
 # FUNCTIONS FOR DASH UI COMPONENTS
 # ----------------------------------------------------------------------------
 
-def build_datatable(data_source, table_id):
+def build_datatable(data_source, table_id, fill_width = False):
+    if(data_source.columns.nlevels == 2):
+        columns_list = []
+        for i in data_source.columns:
+            columns_list.append({"name": [i[0],i[1]], "id": i[1]})
+        data_source.columns = data_source.columns.droplevel()
+    else:
+        columns_list = [{"name": i, "id": i} for i in data_source.columns]
     new_datatable =  dt.DataTable(
             id = table_id,
             data=data_source.to_dict('records'),
-            columns=[{"name": i, "id": i} for i in data_source.columns],
+            columns=columns_list,
             css=[{'selector': '.row', 'rule': 'margin: 0; flex-wrap: nowrap'},
-                {'selector':'.export','rule':export_style }
+                 {'selector':'.export','rule':export_style }
                 # {'selector':'.export','rule':'position:absolute;right:25px;bottom:-35px;font-family:Arial, Helvetica, sans-serif,border-radius: .25re'}
                 ],
             style_cell= {
@@ -62,22 +74,25 @@ def build_datatable(data_source, table_id):
             style_as_list_view=True,
             style_header={
                 'backgroundColor': 'grey',
+                'whiteSpace': 'normal',
                 'fontWeight': 'bold',
                 'color': 'white',
             },
-            style_table={'overflowX': 'auto'},
-            export_format="csv",
+
+            fill_width=fill_width,
+            # style_table={'overflowX': 'auto'},
+            # export_format="csv",
+            merge_duplicate_headers=True,
         )
     return new_datatable
 
 # ----------------------------------------------------------------------------
 # TABS
 # ----------------------------------------------------------------------------
-def build_tabs(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
+def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
     # try:
     report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
-
-    tab1 = html.Div([
+    section1 = html.Div([
         dbc.Card(
             dbc.CardBody([
                 html.H5('Table 1. Number of Subjects Screened', className="card-title"),
@@ -134,7 +149,7 @@ def build_tabs(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_r
         ),
     ])
 
-    tab2 = html.Div([
+    section2 = html.Div([
         dbc.Card([
             html.H5('Table 4. Ongoing Study Status'),
             html.Div([report_date_msg]),
@@ -157,7 +172,7 @@ def build_tabs(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_r
         ],body=True),
     ])
 
-    tab3 = html.Div([
+    section3 = html.Div([
         dbc.Card([
             dbc.CardBody([
                 html.H5('Table 7.a. Protocol Deviations'),
@@ -185,7 +200,6 @@ def build_tabs(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_r
             html.H5('Table 8.a. Adverse Events'),
             html.Div([report_date_msg, '. Table is cumulative over study']),
             html.Div(build_datatable(table8a, 'table_8a')),
-            # html.Div(build_datatable(t2_site_count, 'table_2')),
         ],body=True),
         dbc.Card([
             html.H5('Table 8.b. Description of Adverse Events'),
@@ -194,7 +208,7 @@ def build_tabs(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_r
         ],body=True),
     ])
 
-    tab4 = html.Div([
+    section4 = html.Div([
         dbc.Card([
             html.H5('Table 9. Demographic Characteristics'),
             html.Div([report_date_msg, '. Table is cumulative over study']),
@@ -209,7 +223,15 @@ def build_tabs(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_r
         ],body=True),
     ])
 
-    return tab1, tab2, tab3, tab4
+    return section1, section2, section3, section4
+
+def get_content_dict_for_store(section1, section2, section3, section4):
+    content_dict = {}
+    content_dict['section1'] = section1
+    content_dict['section2'] = section2
+    content_dict['section3'] = section3
+    content_dict['section4'] = section4
+    return content_dict
 
     # except Exception as e:
     #     print(e)
@@ -218,22 +240,60 @@ def build_tabs(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_r
 # ----------------------------------------------------------------------------
 # DASH APP LAYOUT FUNCTION
 # ----------------------------------------------------------------------------
-def serve_layout():
-    try:
-        tab1, tab2, tab3, tab4 = build_tabs(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
-        page_tabs = dcc.Tabs(id='tabs_tables', children=[
-                        dcc.Tab(label='Screening', children=tab1),
-                        dcc.Tab(label='Study Status', children=tab2),
-                        dcc.Tab(label='Deviations & Adverse Events', children=tab3),
-                        dcc.Tab(label='Demographics', children=tab4),
-                    ]),
+def build_page_layout(toggle_view_value, content_dict):
+    sections = content_dict[0]
+    section1 = sections['section1']
+    section2 = sections['section2']
+    section3 = sections['section3']
+    section4 = sections['section4']
 
+    if toggle_view_value:
+        page_layout = [html.H3('Screening'), section1, html.H3('Study Status'), section2, html.H3('Deviations & Adverse Events'), section3, html.H3('Demographics'), section4]
+    else:
+        page_layout = html.Div([
+                    dcc.Tabs(id='tabs_tables', children=[
+                        dcc.Tab(label='Screening', children=[
+                            html.Div([section1], id='section_1'),
+                        ]),
+                        dcc.Tab(label='Study Status', children=[
+                            html.Div([section2], id='section_2'),
+                        ]),
+                        dcc.Tab(label='Deviations & Adverse Events', children=[
+                            html.Div([section3], id='section_3'),
+                        ]),
+                        dcc.Tab(label='Demographics', children=[
+                            html.Div([section4], id='section_4'),
+                        ]),
+                    ]),
+                    ])
+    return page_layout
+
+def serve_layout():
+    section1, section2, section3, section4 = build_content(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+    content_dict = get_content_dict_for_store(section1, section2, section3, section4)
+    try:
+        page_layout = html.Div(id='page_layout')#build_page_layout(section1, section2, section3, section4)
     except:
-        page_tabs = [html.Div(['There has been a problem accessing the data for this Report.'])]
+        page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
+
     s_layout = html.Div([
+        dcc.Store(id='store_sections', data = [content_dict]),
+        Download(id="download-dataframe-xlxs"),
+        Download(id="download-dataframe-html"),
         html.Div([
+            html.Div([
+                # html.Button("Download Report as HTML",n_clicks=0, id="btn_html",style =EXCEL_EXPORT_STYLE ),
+                html.Button("Download Report as Excel",n_clicks=0, id="btn_xlxs",style =EXCEL_EXPORT_STYLE ),
+                daq.ToggleSwitch(
+                    id='toggle-view',
+                    label=['Tabs','Single Page'],
+                    value=False,
+                    style =EXCEL_EXPORT_STYLE
+                ),
+            ],id='print-hide', className='print-hide'),
             html.H2(['A2CPS Weekly Report']),
-            page_tabs[0],
+            html.Div(id='download-msg'),
+            page_layout,
         ]
         , style =CONTENT_STYLE)
     ],style=TACC_IFRAME_SIZE)
@@ -244,8 +304,74 @@ app.layout = serve_layout
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
 
+# Use toggle to display either tabs or single page LAYOUT
+@app.callback(Output("page_layout","children"), Input('toggle-view',"value"),State('store_sections', 'data'))
+def set_page_layout(value, sections):
+    return build_page_layout(value, sections)
 
-# ----------------------------------------------------------------------------
+# Create excel spreadsheel
+# Download Data
+# @app.callback(
+#         Output("download-dataframe-xlxs", "data"),
+#         [Input("btn_xlxs", "n_clicks")],
+#         [State('table_1','data'), State('table_2a','data'), State('table_2b','data'), State('table_3','data'),
+#         State('table_4','data'), State('table_5','data'), State('table_6','data'),
+#         State('table_7a','data'), State('table_7b','data'), State('table_8a','data'), State('table_8b','data'),
+#         State('table_9a','data'), State('table_9b','data'), State('table_9c','data'), State('table_9d','data')],
+#         )
+# def generate_xlsx(n_clicks,table_1,table_2a,table_2b,table_3,table_4,table_5,table_6,table_7a,table_7b,table_8a,table_8b,table_9a,table_9b,table_9c,table_9d):
+#     if n_clicks == 0:
+#         raise PreventUpdate
+#     else:
+#         table_data = (table_1,table_2a,table_2b,table_3,table_4,table_5,table_6,table_7a,table_7b,table_8a,table_8b,table_9a,table_9b,table_9c,table_9d
+#         )
+#         excel_sheet_name = ('Subjects Screened','Reasons for Declining',
+#                             'Declining Comments','Subjects Consented',
+#                             'Study Status','Rescinded Consent',
+#                             'Early Termination',
+#                             'Protocol Deviations','Deviation Descriptionss',
+#                             'Adverse Events','Event Descriptions',
+#                             'Gemder','Race','Ethnicity ','Age')
+#         tables = tuple(zip(table_data, excel_sheet_name))
+#
+#         today = datetime.now().strftime('%Y_%m_%d')
+#         download_filename = datetime.now().strftime('%Y_%m_%d') + '_a2cps_weekly_report.xlsx'
+#
+#         writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
+#         for i in range(0,len(tables)):
+#             df = pd.DataFrame(tables[i][0])
+#             if len(df) == 0 :
+#                 df = pd.DataFrame(['No data for this table'])
+#             df.to_excel(writer, sheet_name=tables[i][1], index = False)
+#         writer.save()
+#
+#         return send_file(writer, download_filename)
+#
+#
+# @app.callback(
+#         # Output("download-dataframe-html", "data"),
+#         Output("download-msg","children"),
+#         [Input("btn_html", "n_clicks")],
+#         [State('section_1','children'), State('section_2','children'), State('section_3','children'), State('section_4','children')],
+#         )
+# def generate_xlsx(n_clicks, section_1, section_2, section_3, section_4):
+#     if n_clicks == 0:
+#         raise PreventUpdate
+#     else:
+#         today = datetime.now().strftime('%Y_%m_%d')
+#         download_filename = datetime.now().strftime('%Y_%m_%d') + '_a2cps_weekly_report.html'
+#
+#         html_content =  html.Div(
+#                         )
+#         # for section in sections:
+#         #     html_content = html_content + section
+#         # Html_file= open(download_filename,"w")
+#
+#         # Html_file.write(html_content)
+#         # Html_file.close()
+#
+#         return html_content #send_file(Html_file, download_filename)
+
 # RUN APPLICATION
 # ----------------------------------------------------------------------------
 

@@ -1,10 +1,12 @@
 dash==1.19.0
 dash-bootstrap-components==0.12.0
 dash-daq==0.5.0
+dash-extensions==0.0.55
 Flask==1.1.2
 gunicorn==20.0.4
 plotly==4.14.3
 plotly-express==0.4.1
-pandas==1.2.3
+pandas==1.2.4
 numpy==1.20.1
 requests
+xlsxwriter==1.4.3
