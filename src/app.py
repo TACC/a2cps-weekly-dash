@@ -78,10 +78,11 @@ def build_datatable(data_source, table_id):
                 'color': 'white',
             },
             style_table={'overflowX': 'auto'},
-            export_format="csv",
+            # export_format="csv",
             merge_duplicate_headers=True,
         )
     return new_datatable
+
 # ----------------------------------------------------------------------------
 # TABS
 # ----------------------------------------------------------------------------
