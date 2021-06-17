@@ -156,16 +156,18 @@ def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, weekly_csv, 
                                     'data': data_source.to_dict('records')  }
 
     return page_meta_dict, tables_dict
-
-def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
+#def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json, tables_dict, page_meta_dict):
+def build_content(tables_dict, page_meta_dict):
     # try:
-    report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+    # report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+    report_date_msg, report_range_msg = page_meta_dict['report_date_msg'], page_meta_dict['report_range_msg']
+
     section1 = html.Div([
         dbc.Card(
             dbc.CardBody([
                 html.H5('Table 1. Number of Subjects Screened', className="card-title"),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable(table1, 'table_1')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table1', 'table_1')),
                 dcc.Markdown('''
                     **Center Name:** Center ID # and name
                     **All Participants:** Total Number of Subjects screened
@@ -181,7 +183,7 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
                 html.H5('Table 2. Reasons for declining'),
                 html.H6('Table 2.a. Reasons for declining by Site'),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable(table2a, 'table_2a')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table2a', 'table_2a')),
                 dcc.Markdown('''
                     **Center Name:** Center ID # and name
                     **Total Declined:** Total Number of Subjects screened
@@ -195,14 +197,14 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             dbc.CardBody([
                 html.H6('Table 2.b. Reasons for declining ‘Additional Comments’'),
                 html.Div([report_range_msg]),
-                html.Div(build_datatable(table2b, 'table_2b')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table2b', 'table_2b')),
             ]),
         ),
         dbc.Card(
             dbc.CardBody([
                 html.H5('Table 3. Number of Subjects Consented'),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable(table3, 'table_3')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table3', 'table_3')),
                 dcc.Markdown('''
                     **Center Name:** Center ID # and name
                     **Consented:** Total Number of Subjects consented
@@ -221,7 +223,7 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
         dbc.Card([
             html.H5('Table 4. Ongoing Study Status'),
             html.Div([report_date_msg]),
-            html.Div(build_datatable(table4, 'table_4')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table4', 'table_4')),
         ],body=True),
         dbc.Card([
             html.H5('Table 5. Rescinded Consent'),
@@ -231,12 +233,12 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             #     label=['Previous Week','Cumulative'],
             #     value=False
             # ),
-            html.Div(build_datatable(table5, 'table_5')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table5', 'table_5')),
         ],body=True),
         dbc.Card([
             html.H5('Table 6. Early Study Termination Listing'),
             html.Div([report_date_msg]),
-            html.Div(build_datatable(table6, 'table_6')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table6', 'table_6')),
         ],body=True),
     ])
 
@@ -245,7 +247,7 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             dbc.CardBody([
                 html.H5('Table 7.a. Protocol Deviations'),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable(table7a, 'table_7a')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table7a', 'table_7a')),
                 dcc.Markdown('''
                     **Center:** Center ID # and name
                     **Baseline Patients:** Total Number of Patients reaching baseline
@@ -261,18 +263,18 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             dbc.CardBody([
                 html.H5('Table 7.b. Description of Protocol Deviations'),
                 html.Div([report_range_msg]),
-                html.Div(build_datatable(table7b, 'table_7b')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table7b', 'table_7b')),
             ]),
         ]),
         dbc.Card([
             html.H5('Table 8.a. Adverse Events'),
             html.Div([report_date_msg, '. Table is cumulative over study']),
-            html.Div(build_datatable(table8a, 'table_8a')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table8a', 'table_8a')),
         ],body=True),
         dbc.Card([
             html.H5('Table 8.b. Description of Adverse Events'),
             html.Div([report_range_msg]),
-            html.Div(build_datatable(table8b, 'table_8b')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table8b', 'table_8b')),
         ],body=True),
     ])
 
@@ -281,13 +283,13 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             html.H5('Table 9. Demographic Characteristics'),
             html.Div([report_date_msg, '. Table is cumulative over study']),
             html.H5('Gender'),
-            html.Div(build_datatable(sex, 'table_9a')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'sex', 'table_9a')),
             html.H5('Race'),
-            html.Div(build_datatable(race, 'table_9b')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'race', 'table_9b')),
             html.H5('Ethnicity'),
-            html.Div(build_datatable(ethnicity, 'table_9c')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'ethnicity', 'table_9c')),
             html.H5('Age'),
-            html.Div(build_datatable(age, 'table_9d')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'age', 'table_9d')),
         ],body=True),
     ])
 
@@ -340,7 +342,7 @@ def serve_layout():
     page_meta_dict, tables_dict, sections_dict = {}, {}, {}
     try:
         page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
-        section1, section2, section3, section4 = build_content(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+        section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
         sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
         page_layout = html.Div(id='page_layout')#build_page_layout(section1, section2, section3, section4)
     except:
@@ -348,7 +350,7 @@ def serve_layout():
 
     s_layout = html.Div([
         dcc.Store(id='store_test', data =[{}] ),
-        dcc.Store(id='store_meta', data = [page_meta_dict]),
+        dcc.Store(id='store_meta', data = page_meta_dict),
         dcc.Store(id='store_tables', data = tables_dict),
         dcc.Store(id='store_sections', data = [sections_dict]),
         Download(id="download-dataframe-xlxs"),
