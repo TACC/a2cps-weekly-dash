@@ -42,4 +42,4 @@ jobs:
       - uses: actions/checkout@v2
       - name: Restart k8s deployment
         run: |
-          curl -X POST -H "Content-Type: application/json" -d '{"listener_token":"${K8S_LISTENER_TOKEN}","deployment":"${K8S_DEPLOYMENT}"}' ${K8S_RESTART_ENDPOINT}
+          curl -X POST -H "Content-Type: application/json" -d '{"listener_token":"${secrets.K8S_LISTENER_TOKEN}","deployment":"${secrets.K8S_DEPLOYMENT}"}' ${secrets.K8S_RESTART_ENDPOINT}
