@@ -32,6 +32,7 @@ app = dash.Dash(__name__,
                 meta_tags=[{'name': 'viewport', 'content': 'width=device-width, initial-scale=1'}],
                 assets_folder=ASSETS_PATH,
                 requests_pathname_prefix=REQUESTS_PATHNAME_PREFIX,
+                suppress_callback_exceptions=True
                 )
 
 
@@ -46,6 +47,42 @@ multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=advers
 # ----------------------------------------------------------------------------
 # FUNCTIONS FOR DASH UI COMPONENTS
 # ----------------------------------------------------------------------------
+def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = False):
+    try:
+        table_columns = table_dict[key]['columns_list']
+        table_data = table_dict[key]['data']
+        new_datatable =  dt.DataTable(
+                id = table_id,
+                columns=table_columns,
+                data=table_data,
+                css=[{'selector': '.row', 'rule': 'margin: 0; flex-wrap: nowrap'},
+                     {'selector':'.export','rule':export_style }
+                    # {'selector':'.export','rule':'position:absolute;right:25px;bottom:-35px;font-family:Arial, Helvetica, sans-serif,border-radius: .25re'}
+                    ],
+                style_cell= {
+                    'text-align':'left',
+                    'vertical-align': 'top',
+                    'font-family':'sans-serif',
+                    'padding': '5px',
+                    'whiteSpace': 'normal',
+                    'height': 'auto',
+                    },
+                style_as_list_view=True,
+                style_header={
+                    'backgroundColor': 'grey',
+                    'whiteSpace': 'normal',
+                    'fontWeight': 'bold',
+                    'color': 'white',
+                },
+
+                fill_width=fill_width,
+                # style_table={'overflowX': 'auto'},
+                # export_format="csv",
+                merge_duplicate_headers=True,
+            )
+        return new_datatable
+    except:
+        return None
 
 def build_datatable(data_source, table_id, fill_width = False):
     if(data_source.columns.nlevels == 2):
@@ -89,15 +126,48 @@ def build_datatable(data_source, table_id, fill_width = False):
 # ----------------------------------------------------------------------------
 # TABS
 # ----------------------------------------------------------------------------
-def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
-    # try:
+def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
     report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+    tables_names = ("table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
+    excel_sheet_names = ("table1_test", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
+
+    tables = (table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
+
+    page_meta_dict = {}
+    page_meta_dict['report_date_msg'] = report_date_msg
+    page_meta_dict['report_range_msg'] = report_range_msg
+
+    tables_dict = {}
+    for i in range(0,len(tables_names)):
+        table_name = tables_names[i]
+        excel_sheet_name = excel_sheet_names[i]
+        data_source = tables[i]
+
+        if(data_source.columns.nlevels == 2):
+            columns_list = []
+            for i in data_source.columns:
+                columns_list.append({"name": [i[0],i[1]], "id": i[1]})
+            data_source.columns = data_source.columns.droplevel()
+        else:
+            columns_list = [{"name": i, "id": i} for i in data_source.columns]
+
+        tables_dict[table_name] = {'excel_sheet_name': excel_sheet_name,
+                                    'columns_list': columns_list,
+                                    'data': data_source.to_dict('records')  }
+
+    return page_meta_dict, tables_dict
+#def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json, tables_dict, page_meta_dict):
+def build_content(tables_dict, page_meta_dict):
+    # try:
+    # report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+    report_date_msg, report_range_msg = page_meta_dict['report_date_msg'], page_meta_dict['report_range_msg']
+
     section1 = html.Div([
         dbc.Card(
             dbc.CardBody([
                 html.H5('Table 1. Number of Subjects Screened', className="card-title"),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable(table1, 'table_1')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table1', 'table_1')),
                 dcc.Markdown('''
                     **Center Name:** Center ID # and name
                     **All Participants:** Total Number of Subjects screened
@@ -113,7 +183,7 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
                 html.H5('Table 2. Reasons for declining'),
                 html.H6('Table 2.a. Reasons for declining by Site'),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable(table2a, 'table_2a')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table2a', 'table_2a')),
                 dcc.Markdown('''
                     **Center Name:** Center ID # and name
                     **Total Declined:** Total Number of Subjects screened
@@ -127,14 +197,14 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             dbc.CardBody([
                 html.H6('Table 2.b. Reasons for declining ‘Additional Comments’'),
                 html.Div([report_range_msg]),
-                html.Div(build_datatable(table2b, 'table_2b')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table2b', 'table_2b')),
             ]),
         ),
         dbc.Card(
             dbc.CardBody([
                 html.H5('Table 3. Number of Subjects Consented'),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable(table3, 'table_3')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table3', 'table_3')),
                 dcc.Markdown('''
                     **Center Name:** Center ID # and name
                     **Consented:** Total Number of Subjects consented
@@ -153,7 +223,7 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
         dbc.Card([
             html.H5('Table 4. Ongoing Study Status'),
             html.Div([report_date_msg]),
-            html.Div(build_datatable(table4, 'table_4')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table4', 'table_4')),
         ],body=True),
         dbc.Card([
             html.H5('Table 5. Rescinded Consent'),
@@ -163,12 +233,12 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             #     label=['Previous Week','Cumulative'],
             #     value=False
             # ),
-            html.Div(build_datatable(table5, 'table_5')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table5', 'table_5')),
         ],body=True),
         dbc.Card([
             html.H5('Table 6. Early Study Termination Listing'),
             html.Div([report_date_msg]),
-            html.Div(build_datatable(table6, 'table_6')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table6', 'table_6')),
         ],body=True),
     ])
 
@@ -177,13 +247,13 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             dbc.CardBody([
                 html.H5('Table 7.a. Protocol Deviations'),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable(table7a, 'table_7a')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table7a', 'table_7a')),
                 dcc.Markdown('''
-                    **Center Name:** Center ID # and name
-                    **Total Subjects:** Total Number of Subjects consented
-                    **Total Subjects with Deviation:** Total Number of Subjects with at least one deviation
-                    **Percent with 1+ Deviations:** Percent of Subjects with 1 or more deviations
-                    **Total Deviations:** Total of all deviations at this center
+                    **Center:** Center ID # and name
+                    **Baseline Patients:** Total Number of Patients reaching baseline
+                    **# with Deviation:** Total Number of Patients with at least one deviation
+                    **Total Deviations:** Total of all deviations at this center (a single patient can have more than one)
+                    **% with 1+ Deviations:** Percent of Patients with 1 or more deviations
                     **Additional Columns:** Count by center of the total number of each particular type of deviation
                     '''
                     ,style={"white-space": "pre"}),
@@ -193,18 +263,18 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             dbc.CardBody([
                 html.H5('Table 7.b. Description of Protocol Deviations'),
                 html.Div([report_range_msg]),
-                html.Div(build_datatable(table7b, 'table_7b')),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table7b', 'table_7b')),
             ]),
         ]),
         dbc.Card([
             html.H5('Table 8.a. Adverse Events'),
             html.Div([report_date_msg, '. Table is cumulative over study']),
-            html.Div(build_datatable(table8a, 'table_8a')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table8a', 'table_8a')),
         ],body=True),
         dbc.Card([
             html.H5('Table 8.b. Description of Adverse Events'),
             html.Div([report_range_msg]),
-            html.Div(build_datatable(table8b, 'table_8b')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'table8b', 'table_8b')),
         ],body=True),
     ])
 
@@ -213,25 +283,25 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
             html.H5('Table 9. Demographic Characteristics'),
             html.Div([report_date_msg, '. Table is cumulative over study']),
             html.H5('Gender'),
-            html.Div(build_datatable(sex, 'table_9a')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'sex', 'table_9a')),
             html.H5('Race'),
-            html.Div(build_datatable(race, 'table_9b')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'race', 'table_9b')),
             html.H5('Ethnicity'),
-            html.Div(build_datatable(ethnicity, 'table_9c')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'ethnicity', 'table_9c')),
             html.H5('Age'),
-            html.Div(build_datatable(age, 'table_9d')),
+            html.Div(build_datatable_from_table_dict(tables_dict, 'age', 'table_9d')),
         ],body=True),
     ])
 
     return section1, section2, section3, section4
 
-def get_content_dict_for_store(section1, section2, section3, section4):
-    content_dict = {}
-    content_dict['section1'] = section1
-    content_dict['section2'] = section2
-    content_dict['section3'] = section3
-    content_dict['section4'] = section4
-    return content_dict
+def get_sections_dict_for_store(section1, section2, section3, section4):
+    sections_dict = {}
+    sections_dict['section1'] = section1
+    sections_dict['section2'] = section2
+    sections_dict['section3'] = section3
+    sections_dict['section4'] = section4
+    return sections_dict
 
     # except Exception as e:
     #     print(e)
@@ -240,8 +310,8 @@ def get_content_dict_for_store(section1, section2, section3, section4):
 # ----------------------------------------------------------------------------
 # DASH APP LAYOUT FUNCTION
 # ----------------------------------------------------------------------------
-def build_page_layout(toggle_view_value, content_dict):
-    sections = content_dict[0]
+def build_page_layout(toggle_view_value, sections_dict):
+    sections = sections_dict[0]
     section1 = sections['section1']
     section2 = sections['section2']
     section3 = sections['section3']
@@ -269,21 +339,27 @@ def build_page_layout(toggle_view_value, content_dict):
     return page_layout
 
 def serve_layout():
-    section1, section2, section3, section4 = build_content(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
-    content_dict = get_content_dict_for_store(section1, section2, section3, section4)
+    page_meta_dict, tables_dict, sections_dict = {}, {}, {}
     try:
+        page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+        section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
+        sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
         page_layout = html.Div(id='page_layout')#build_page_layout(section1, section2, section3, section4)
     except:
         page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
 
     s_layout = html.Div([
-        dcc.Store(id='store_sections', data = [content_dict]),
+        dcc.Store(id='store_test', data =[{}] ),
+        dcc.Store(id='store_meta', data = page_meta_dict),
+        dcc.Store(id='store_tables', data = tables_dict),
+        dcc.Store(id='store_sections', data = [sections_dict]),
         Download(id="download-dataframe-xlxs"),
         Download(id="download-dataframe-html"),
+
         html.Div([
             html.Div([
                 # html.Button("Download Report as HTML",n_clicks=0, id="btn_html",style =EXCEL_EXPORT_STYLE ),
-                html.Button("Download Report as Excel",n_clicks=0, id="btn_xlxs",style =EXCEL_EXPORT_STYLE ),
+                html.Button("Download as Excel",n_clicks=0, id="btn_xlxs",style =EXCEL_EXPORT_STYLE ),
                 daq.ToggleSwitch(
                     id='toggle-view',
                     label=['Tabs','Single Page'],
@@ -310,6 +386,42 @@ def set_page_layout(value, sections):
     return build_page_layout(value, sections)
 
 # Create excel spreadsheel
+@app.callback(
+        Output("download-msg", "children"),
+        Output("download-dataframe-xlxs", "data"),
+        Input("btn_xlxs", "n_clicks"),
+        State("store_tables","data"),
+        )
+def click_excel(n_clicks,store):
+    if n_clicks == 0:
+        raise PreventUpdate
+    if store:
+        # msg =  html.Div(json.dumps(store))
+        today = datetime.now().strftime('%Y_%m_%d')
+        download_filename = datetime.now().strftime('%Y_%m_%d') + '_a2cps_weekly_report.xlsx'
+        msg = 'data downloaded to ' + download_filename
+        table_keys = store.keys()
+
+        writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
+
+        for key in table_keys:
+            excel_sheet_name = store[key]['excel_sheet_name']
+            df = pd.DataFrame(store[key]['data'])
+            if len(df) == 0 :
+                df = pd.DataFrame(columns =['No data for this table'])
+            df.to_excel(writer, sheet_name=excel_sheet_name, index = False)
+        writer.save()
+
+        excel_file =  send_file(writer, download_filename)
+
+    else:
+        msg = html.Div('No Data Available for download')
+        excel_file = None
+    return msg, excel_file
+        # msg = ''
+        # for key in store[0].keys():
+        #     msg += key + ','
+        #     return json.dumps(store[0]['section1']['props'])
 # Download Data
 # @app.callback(
 #         Output("download-dataframe-xlxs", "data"),
@@ -346,15 +458,15 @@ def set_page_layout(value, sections):
 #         writer.save()
 #
 #         return send_file(writer, download_filename)
-#
-#
+
+
 # @app.callback(
 #         # Output("download-dataframe-html", "data"),
 #         Output("download-msg","children"),
 #         [Input("btn_html", "n_clicks")],
 #         [State('section_1','children'), State('section_2','children'), State('section_3','children'), State('section_4','children')],
 #         )
-# def generate_xlsx(n_clicks, section_1, section_2, section_3, section_4):
+# def generate_html(n_clicks, section_1, section_2, section_3, section_4):
 #     if n_clicks == 0:
 #         raise PreventUpdate
 #     else:
