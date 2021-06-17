@@ -39,7 +39,7 @@ jobs:
           dockerfile: Dockerfile
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: actions/checkout@v2
       - name: Restart k8s deployment
-        uses: wei/curl@master
-        with:
-          args: -X POST -H "Content-Type: application/json" -d '{"listener_token":"${K8S_LISTENER_TOKEN}","deployment":"${K8S_DEPLOYMENT}"}' ${K8S_RESTART_ENDPOINT}
+        run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"listener_token":"${K8S_LISTENER_TOKEN}","deployment":"${K8S_DEPLOYMENT}"}' ${K8S_RESTART_ENDPOINT}
