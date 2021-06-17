@@ -247,11 +247,11 @@ def build_content(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable(table7a, 'table_7a')),
                 dcc.Markdown('''
-                    **Center Name:** Center ID # and name
-                    **Total Subjects:** Total Number of Subjects consented
-                    **Total Subjects with Deviation:** Total Number of Subjects with at least one deviation
-                    **Percent with 1+ Deviations:** Percent of Subjects with 1 or more deviations
-                    **Total Deviations:** Total of all deviations at this center
+                    **Center:** Center ID # and name
+                    **Baseline Patients:** Total Number of Patients reaching baseline
+                    **# with Deviation:** Total Number of Patients with at least one deviation
+                    **Total Deviations:** Total of all deviations at this center (a single patient can have more than one)
+                    **% with 1+ Deviations:** Percent of Patients with 1 or more deviations
                     **Additional Columns:** Count by center of the total number of each particular type of deviation
                     '''
                     ,style={"white-space": "pre"}),

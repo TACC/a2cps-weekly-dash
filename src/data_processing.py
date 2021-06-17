@@ -392,7 +392,7 @@ def get_deviation_records(df, multi_data, display_terms_dict):
     deviations = multi_data.dropna(subset=deviation_flag_cols)[deviations_cols ]
 
     # Merge deviations with center info
-    deviations = deviations.merge(df[['redcap_data_access_group','redcap_data_access_group_display','record_id','sp_v1_preop_date']], how='left', on = 'record_id')
+    deviations = deviations.merge(df[['redcap_data_access_group','redcap_data_access_group_display','record_id','start_v1_preop']], how='left', on = 'record_id')
 
     # Convert deviation type to text
     deviation_terms = display_terms_dict['erep_protdev_type']
@@ -401,64 +401,10 @@ def get_deviation_records(df, multi_data, display_terms_dict):
 
     return deviations
 
-# def get_deviations_by_center(df, deviations, display_terms_dict):
-    dev_cols = ['record_id','redcap_data_access_group','screening_id','sp_v1_preop_date']
-    baseline = df.dropna(subset=['sp_v1_preop_date'])[dev_cols]
-    baseline = baseline.reset_index()
-
-    # Flag patients who have an associated deviation
-    records_with_deviation = deviations.record_id.unique()
-    baseline_with_dev = baseline[baseline.record_id.isin(records_with_deviation)]
-
-    # Calculate total baseline participants
-    baseline_total = baseline.groupby(by=['redcap_data_access_group'],as_index=False).size()
-    baseline_total = baseline_total.rename(columns={'size':'Total Subjects'})
-
-    # Calculate total baseline participants with 1+ deviations
-    baseline_dev_total = baseline_with_dev.groupby(by=['redcap_data_access_group'],as_index=False).size()
-    baseline_dev_total = baseline_dev_total.rename(columns={'size':'Total Subjects with Deviation'})
-
-    # Merge dataframes
-    baseline_total = baseline_total.merge(baseline_dev_total, how='outer', on = 'redcap_data_access_group')
-
-    # Calculate Perent Column
-    baseline_total['Percent with 1+ Deviation'] = 100 * (baseline_total['Total Subjects with Deviation'] / baseline_total['Total Subjects'])
-
-    # Add count of all deviations for a given center
-    center_count = pd.DataFrame(deviations.value_counts(subset=['redcap_data_access_group'])).reset_index()
-    center_count.columns =['redcap_data_access_group','Total Deviations']
-    baseline_total = baseline_total.merge(center_count, how='left', on = 'redcap_data_access_group')
-
-    # Merge data with full list of centers
-    centers = display_terms_dict['redcap_data_access_group']
-    baseline_total = centers.merge(baseline_total,how='left', on='redcap_data_access_group')
-
-    # Get list of deviation type by center
-    dev_by_center = deviations[['record_id','Deviation', 'instance','redcap_data_access_group']]
-
-    # Group and count by center
-    dev_by_center = dev_by_center.groupby(by=['redcap_data_access_group','Deviation'],as_index=False).size()
-
-    # Pivot deviation rows into columns
-    dev_by_center_pivot =  pd.pivot_table(dev_by_center, index=["redcap_data_access_group"], columns=["Deviation"], values=["size"])
-
-    # Clean up column levels and naming
-    dev_by_center_pivot.columns = dev_by_center_pivot.columns.droplevel()
-    dev_by_center_pivot.columns.name = ''
-    dev_by_center_pivot = dev_by_center_pivot.reset_index()
-
-    # Merge baseline total and specific deviation information into one table
-    baseline_total = baseline_total.merge(dev_by_center_pivot, how='left', on='redcap_data_access_group')
-
-    # Drop center database name and rename display colum
-    baseline_total = baseline_total.drop(columns=['redcap_data_access_group'])
-    baseline_total = baseline_total.rename(columns={'redcap_data_access_group_display':'Center Name'})
-
-    return baseline_total
 
 def get_deviations_by_center(centers, df, deviations, display_terms_dict):
-    dev_cols = ['record_id','redcap_data_access_group_display','sp_v1_preop_date']
-    baseline = df.dropna(subset=['sp_v1_preop_date'])[dev_cols]
+    dev_cols = ['record_id','redcap_data_access_group_display','start_v1_preop']
+    baseline = df[df['start_v1_preop']==1][dev_cols]
     baseline = baseline.reset_index()
 
     # Count consented patients who have had baseline visits
@@ -555,9 +501,9 @@ def get_adverse_event_records(df, multi_data, display_terms_dict_multi):
     return adverse_events
 
 def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapping):
-    # Select subset of patients who have had baseline visits (sp_v1_preop_date not null), using record_id as unique identifier
-    baseline_cols = ['record_id','redcap_data_access_group_display','sp_v1_preop_date']
-    baseline = df.dropna(subset=['sp_v1_preop_date'])[baseline_cols]
+    # Select subset of patients who have had baseline visits (start_v1_preop not null), using record_id as unique identifier
+    baseline_cols = ['record_id','redcap_data_access_group_display','start_v1_preop']
+    baseline = df[df['start_v1_preop']==1][baseline_cols]
     baseline = baseline.reset_index()
 
     # Count consented patients who have had baseline visits
