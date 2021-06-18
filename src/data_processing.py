@@ -383,7 +383,7 @@ def get_tables_5_6(df):
 # ----------------------------------------------------------------------------
 # Deviation & Adverse Event Tables
 # ----------------------------------------------------------------------------
-def get_deviation_records(df, multi_data, display_terms_dict):
+def get_deviation_records(df, multi_data, display_terms_mapping):
     # Get Data on Protocol deviations
     deviation_flag_cols = ['erep_prot_dev']
     deviations_cols = ['record_id', 'instance','erep_local_dtime',
@@ -395,7 +395,7 @@ def get_deviation_records(df, multi_data, display_terms_dict):
     deviations = deviations.merge(df[['redcap_data_access_group','redcap_data_access_group_display','record_id','start_v1_preop']], how='left', on = 'record_id')
 
     # Convert deviation type to text
-    deviation_terms = display_terms_dict['erep_protdev_type']
+    deviation_terms = display_terms_mapping['erep_protdev_type']
     deviation_terms.columns = ['erep_protdev_type','Deviation']
     deviations = deviations.merge(deviation_terms, how='left', on='erep_protdev_type')
 
@@ -451,16 +451,28 @@ def get_deviations_by_center(centers, df, deviations, display_terms_dict):
     centers_all['percent_baseline_with_dev'] = centers_all['percent_baseline_with_dev'].map('{:,.2f}'.format)
     centers_all['percent_baseline_with_dev'] = centers_all['percent_baseline_with_dev'].replace('nan','-')
 
-
-    # Rename and Reorder for display
-    rename_cols = ['Center', 'Patients',
-       '# With Deviation', 'Total Deviations', 'Informed Consent', 'Other',
-       'Protocol Deviation-QST', 'Protocol Deviation-blood drawo',
-       'Protocol Deviation-functional testing', 'Protocol Deviation-imaging',
-       'Visit timeline (outside protocol range)', '% with 1+ Deviation']
-    centers_all.columns = rename_cols
-    col_order = rename_cols[0:4] + rename_cols[-1:] + rename_cols[4:-1]
+    # Reorder for display
+    cols = list(centers_all.columns)
+    col_order = cols[0:3] + cols[-1:] + cols[3:-1]
     centers_all = centers_all[col_order]
+
+    # Rename columns
+    rename_dict = {'redcap_data_access_group_display': ('', 'Center Name'),
+                     'baseline': ('Subjects', 'Baseline'),
+                     'patients_with_deviation': ('Subjects', '# With 1+ Deviations'),
+                     'percent_baseline_with_dev': ('Subjects', '% Baseline with Deviation'),
+                     'total_dev': ('Deviations', 'Total # of Dev.'),
+                     'Blood Draw': ('Deviations', 'Blood Draw'),
+                     'Functional Testing': ('Deviations', 'Functional Testing'),
+                     'Imaging': ('Deviations', 'Imaging  '),
+                     'Informed Consent': ('Deviations', 'Informed Consent'),
+                     'Other': ('Deviations', 'Other'),
+                     'QST': ('Deviations', 'QST'),
+                     'Visit Timeline': ('Deviations', 'Visit Timeline')}
+    centers_all.rename(columns=rename_dict, inplace=True)
+
+    # Convert columns to MultiIndex **FOR NOW DROP LEVEL BECAUSE OF WEIRD DISPLAY
+    centers_all.columns = pd.MultiIndex.from_tuples(centers_all.columns)
 
     return centers_all
 

@@ -1,68 +1,68 @@
 ﻿api_field,api_value,multi,data_dictionary_values,display_text,changed_text
-redcap_data_access_group,rush_university_me,0,MCC1: Rush,MCC1: Rush,
-redcap_data_access_group,northshore,0,MCC1: NorthShore,MCC1: NorthShore,
-redcap_data_access_group,uchicago,0,MCC1: UChicago,MCC1: UChicago,
-participation_interest,0,0,No,No,
-participation_interest,1,0,Maybe,Maybe,
-participation_interest,2,0,Yes,Yes,
-screening_race,6,0,American Indian or Alaska Native,American Indian or Alaska Native,
-screening_race,5,0,Asian,Asian,
-screening_race,4,0,Black/African American,Black or African-American,TRUE
-screening_race,3,0,Native Hawaiian or other Pacific Islander,Native Hawaiian or Pacific Islander,TRUE
-screening_race,2,0,White/Caucasian,White,TRUE
-screening_race,1,0,Other,Unknown,TRUE
-screening_race,0,0,Prefer not to answer,Not Reported,TRUE
-dem_race,1,0,American Indian or Alaska Native,American Indian or Alaska Native,
-dem_race,2,0,Asian,Asian,
-dem_race,3,0,Black or African-American,Black or African-American,
-dem_race,4,0,Native Hawaiian or Pacific Islander,Native Hawaiian or Pacific Islander,
-dem_race,5,0,White,White,
-dem_race,6,0,Unknown,Unknown,
-dem_race,7,0,Not Reported,Not Reported,
-screening_ethnicity,2,0,Hispanic or Latino,Hispanic or Latino,
-screening_ethnicity,1,0,Not Hispanic or Latino,Not Hispanic or Latino,
-screening_ethnicity,0,0,Prefer not to answer,Not reported,TRUE
-ethnic,1,0,Hispanic or Latino,Hispanic or Latino,
-ethnic,2,0,Not Hispanic or Latino,Not Hispanic or Latino,
-ethnic,3,0,Unknown,Unknown,
-ethnic,4,0,Not reported,Not reported,
-screening_gender,1,0,Male,Male,
-screening_gender,2,0,Female,Female,
-screening_gender,3,0,Unknown,Unknown,
-screening_gender,4,0,Other,Other,
-sex,1,0,Male,Male,
-sex,2,0,Female,Female,
-sex,3,0,Unknown,Unknown,
-sex,4,0,Intersex ,Intersex ,
-genident,1,0,Male,Male,
-genident,2,0,Female,Female,
-genident,3,0,Unknown,Unknown,
-genident,4,0,Other,Other,
-reason_not_interested,5,1,No specific reason,No specific reason,
-reason_not_interested,4,1,Time-related issue or concern,Time-related issue or concern,
-reason_not_interested,3,1,Specific study procedure,Specific study procedure,
-reason_not_interested,2,1,Compensation insufficient,Compensation insufficient,
-reason_not_interested,1,1,COVID-related,COVID-related,
-reason_not_interested,0,1,Not interested in research,Not interested in research,
-reason_not_interested,-1,1,Not provided,Not provided,
-erep_protdev_type,1,1,Informed Consent,Informed Consent,
-erep_protdev_type,2,1,Protocol Deviation-blood drawo,Protocol Deviation-blood drawo,
-erep_protdev_type,3,1,Protocol Deviation-functional testing,Protocol Deviation-functional testing,
-erep_protdev_type,4,1,Protocol Deviation-QST,Protocol Deviation-QST,
-erep_protdev_type,5,1,Protocol Deviation-imaging,Protocol Deviation-imaging,
-erep_protdev_type,6,1,Visit timeline (outside protocol range),Visit timeline (outside protocol range),
-erep_protdev_type,7,1,Other,Other,
-erep_ae_yn,1,1,Yes,Yes,
-erep_ae_yn,0,1,No,No,
-erep_ae_severity,1,1,Mild,Mild,
-erep_ae_severity,2,1,Moderate,Moderate,
-erep_ae_severity,3,1,Severe,Severe,
-erep_ae_relation,1,1,Definitely Related,Definitely Related,
-erep_ae_relation,2,1,Possibly/Probably Related,Possibly/Probably Related,
-erep_ae_relation,3,1,Not Related,Not Related,
-erep_ae_serious,1,1,Yes,Yes,
-erep_ae_serious,0,1,No,No,
-ewprimaryreason,1,0,Subject chose to discontinue the study,Subject chose to discontinue the study,
-ewprimaryreason,2,0,Site PI chose to discontinue subject participation,Site PI chose to discontinue subject participation,
-ewprimaryreason,3,0,"Subject is lost to follow-up, unable to locate","Subject is lost to follow-up, unable to locate",
-ewprimaryreason,4,0,Death,Death,
+redcap_data_access_group,rush_university_me,0,MCC1: Rush,MCC1: Rush,0
+redcap_data_access_group,northshore,0,MCC1: NorthShore,MCC1: NorthShore,0
+redcap_data_access_group,uchicago,0,MCC1: UChicago,MCC1: UChicago,0
+participation_interest,0,0,No,No,0
+participation_interest,1,0,Maybe,Maybe,0
+participation_interest,2,0,Yes,Yes,0
+screening_race,6,0,American Indian or Alaska Native,American Indian or Alaska Native,0
+screening_race,5,0,Asian,Asian,0
+screening_race,4,0,Black/African American,Black or African-American,1
+screening_race,3,0,Native Hawaiian or other Pacific Islander,Native Hawaiian or Pacific Islander,1
+screening_race,2,0,White/Caucasian,White,1
+screening_race,1,0,Other,Unknown,1
+screening_race,0,0,Prefer not to answer,Not Reported,1
+dem_race,1,0,American Indian or Alaska Native,American Indian or Alaska Native,0
+dem_race,2,0,Asian,Asian,0
+dem_race,3,0,Black or African-American,Black or African-American,0
+dem_race,4,0,Native Hawaiian or Pacific Islander,Native Hawaiian or Pacific Islander,0
+dem_race,5,0,White,White,0
+dem_race,6,0,Unknown,Unknown,0
+dem_race,7,0,Not Reported,Not Reported,0
+screening_ethnicity,2,0,Hispanic or Latino,Hispanic or Latino,0
+screening_ethnicity,1,0,Not Hispanic or Latino,Not Hispanic or Latino,0
+screening_ethnicity,0,0,Prefer not to answer,Not reported,1
+ethnic,1,0,Hispanic or Latino,Hispanic or Latino,0
+ethnic,2,0,Not Hispanic or Latino,Not Hispanic or Latino,0
+ethnic,3,0,Unknown,Unknown,0
+ethnic,4,0,Not reported,Not reported,0
+screening_gender,1,0,Male,Male,0
+screening_gender,2,0,Female,Female,0
+screening_gender,3,0,Unknown,Unknown,0
+screening_gender,4,0,Other,Other,0
+sex,1,0,Male,Male,0
+sex,2,0,Female,Female,0
+sex,3,0,Unknown,Unknown,0
+sex,4,0,Intersex ,Intersex ,0
+genident,1,0,Male,Male,0
+genident,2,0,Female,Female,0
+genident,3,0,Unknown,Unknown,0
+genident,4,0,Other,Other,0
+reason_not_interested,5,1,No specific reason,No specific reason,0
+reason_not_interested,4,1,Time-related issue or concern,Time-related issue or concern,0
+reason_not_interested,3,1,Specific study procedure,Specific study procedure,0
+reason_not_interested,2,1,Compensation insufficient,Compensation insufficient,0
+reason_not_interested,1,1,COVID-related,COVID-related,0
+reason_not_interested,0,1,Not interested in research,Not interested in research,0
+reason_not_interested,-1,1,Not provided,Not provided,0
+erep_protdev_type,1,1,Informed Consent,Informed Consent,0
+erep_protdev_type,2,1,Protocol Deviation-blood drawo,Blood Draw,1
+erep_protdev_type,3,1,Protocol Deviation-functional testing,Functional Testing,1
+erep_protdev_type,4,1,Protocol Deviation-QST,QST,1
+erep_protdev_type,5,1,Protocol Deviation-imaging,Imaging,1
+erep_protdev_type,6,1,Visit timeline (outside protocol range),Visit Timeline,1
+erep_protdev_type,7,1,Other,Other,0
+erep_ae_yn,1,1,Yes,Yes,0
+erep_ae_yn,0,1,No,No,0
+erep_ae_severity,1,1,Mild,Mild,0
+erep_ae_severity,2,1,Moderate,Moderate,0
+erep_ae_severity,3,1,Severe,Severe,0
+erep_ae_relation,1,1,Definitely Related,Definitely Related,0
+erep_ae_relation,2,1,Possibly/Probably Related,Possibly/Probably Related,0
+erep_ae_relation,3,1,Not Related,Not Related,0
+erep_ae_serious,1,1,Yes,Yes,0
+erep_ae_serious,0,1,No,No,0
+ewprimaryreason,1,0,Subject chose to discontinue the study,Subject chose to discontinue the study,0
+ewprimaryreason,2,0,Site PI chose to discontinue subject participation,Site PI chose to discontinue subject participation,0
+ewprimaryreason,3,0,"Subject is lost to follow-up, unable to locate","Subject is lost to follow-up, unable to locate",0
+ewprimaryreason,4,0,Death,Death,0
