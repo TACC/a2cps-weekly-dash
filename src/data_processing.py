@@ -299,6 +299,11 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
        ]
     t3_aggregate = t3_aggregate[cols_display_order]
 
+    # Add aggregate sum row
+    t3_aggregate.loc['All']= t3_aggregate.sum(numeric_only=True, axis=0)
+    t3_aggregate.loc['All','Center Name'] = 'All Sites'
+    t3_aggregate.fillna("", inplace=True)
+
     return t3, t3_aggregate
 
 
@@ -348,6 +353,10 @@ def get_table_4(centers, consented_patients, compare_date = datetime.now()):
                         'start_12mo':'12 Month',
                         'ewdateterm':'Resc./Early Term.'}
     table4_agg.rename(columns=rename_cols_dict, inplace = True)
+
+    table4_agg.loc['All']= table4_agg.sum(numeric_only=True, axis=0)
+    table4_agg.loc['All','Center'] = 'All Sites'
+    table4_agg.fillna("", inplace=True)
 
     return table4_agg
 
