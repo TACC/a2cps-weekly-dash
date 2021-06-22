@@ -210,9 +210,9 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table7a', 'table_7a')),
                 dcc.Markdown('''
-                    **Center:** Center ID # and name
-                    **Baseline Patients:** Total Number of Patients reaching baseline
-                    **# with Deviation:** Total Number of Patients with at least one deviation
+                    **Center Name:** MCC and Site
+                    **Baseline Patients:** Total number of subjects reaching baseline
+                    **# with Deviation:** Total number of subjects with at least one deviation
                     **Total Deviations:** Total of all deviations at this center (a single patient can have more than one)
                     **% with 1+ Deviations:** Percent of Patients with 1 or more deviations
                     **Additional Columns:** Count by center of the total number of each particular type of deviation

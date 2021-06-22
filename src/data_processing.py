@@ -574,7 +574,7 @@ def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapp
                  ('Relationship', 'Definitely Related'),
                  ('Relationship', 'Possibly/Probably Related'),
                  ('Relationship', 'Not Related'),
-                 ('', 'Total # Events')]
+                 ('', '% Of Subjects with A.E.')]
     centers_ae.columns = rename_cols
     col_order = rename_cols[0:3] + rename_cols[-1:] + rename_cols[4:8] + rename_cols[9:10]  + rename_cols[8:9] + rename_cols[3:4]
     centers_ae = centers_ae[col_order]
@@ -711,8 +711,7 @@ def get_page_data(report_date, ASSETS_PATH, display_terms_file, weekly_csv, mult
     race = rollup_demo_data(demo_active, 'Race', display_terms_dict, 'dem_race')
     ethnicity = rollup_demo_data(demo_active, 'Ethnicity', display_terms_dict, 'ethnic')
     age = pd.DataFrame(demo_active.Age.describe().reset_index())
-    age['Age'] = np.where((age['Age'] % 1 == 0), age['Age'].astype(int), age['Age'].round(2))
-    age['Age'] = age['Age'].astype('str')
-    age['Age'] = age['Age'].replace(".0", "",regex=True)
+    age_round_rows = ['mean', 'std']
+    age['Age'] = np.where((age['index'].isin(age_round_rows)), age['Age'].round(2).astype(str), age['Age'])
 
     return report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age
