@@ -61,7 +61,7 @@ def load_weekly_data(weekly_csv, display_terms_dict):
         df = df.apply(pd.to_numeric, errors='ignore')
 
         # convert date columns from object --> datetime datatypes as appropriate
-        datetime_cols_list = ['date_of_contact','date_and_time','ewdateterm'] #erep_local_dtime also dates, but currently an array
+        datetime_cols_list = ['date_of_contact','date_and_time','obtain_date','ewdateterm'] #erep_local_dtime also dates, but currently an array
         df[datetime_cols_list] = df[datetime_cols_list].apply(pd.to_datetime)
         for i in display_terms_dict.keys():
             if i in df.columns:
@@ -258,7 +258,7 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     t3['eligible'] = eligible
 
     # Get conset within last days range days
-    within_days_range = ((end_report_date - t3.date_and_time).dt.days) <= days_range
+    within_days_range = ((end_report_date - t3.obtain_date).dt.days) <= days_range
     t3['within_range'] = within_days_range
 
     # Aggregate data for table 3
@@ -266,7 +266,7 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     # Note: can supply a list of aggregate functions to one columnm i.e. 'col_name': ['min','max']
     cols_for_groupby = ["redcap_data_access_group_display"]
     aggregate_columns_dict={'screening_id':'count',
-                            'date_and_time':'max',
+                            'obtain_date':'max',
                              'eligible':'sum',
                              'ewdateterm':'count',
                            'within_range':'sum'}
@@ -277,7 +277,7 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     t3_aggregate = t3_aggregate.reset_index()
 
     # Calculate the number of days since the last consent
-    t3_aggregate['days_since_consent'] = (end_report_date.date() - t3_aggregate['date_and_time'].dt.date).astype(str)
+    t3_aggregate['days_since_consent'] = (end_report_date.date() - t3_aggregate['obtain_date'].dt.date).astype(str)
 
     # Calculate # of ineligible from total - eligible
     t3_aggregate['ineligible'] = t3_aggregate['screening_id'] - t3_aggregate['eligible']
