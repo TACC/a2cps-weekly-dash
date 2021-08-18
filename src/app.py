@@ -304,6 +304,10 @@ def serve_layout():
         page_layout = html.Div(id='page_layout')
     except:
         page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
+    if REDCAP_TOKEN:
+        rcap = 'token acquired'
+    else:
+        rcap = 'no token'
 
     s_layout = html.Div([
         dcc.Store(id='store_meta', data = page_meta_dict),
@@ -313,6 +317,7 @@ def serve_layout():
         Download(id="download-dataframe-html"),
 
         html.Div([
+            html.H1(rcap),
             html.H2(['A2CPS Weekly Report']),
             html.Div([
                 html.Button("Download as Excel",n_clicks=0, id="btn_xlxs",style =EXCEL_EXPORT_STYLE ),

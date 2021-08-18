@@ -363,14 +363,14 @@ def get_table_4(centers, consented_patients, compare_date = datetime.now()):
 def get_tables_5_6(df):
     # Get patients who rescinded consent, i.e. have a value in the 'ewdateterm' column
     rescinded = df.dropna(subset=['ewdateterm'])
-    rescinded_cols = ['redcap_data_access_group_display','record_id','date_and_time','ewdateterm','ewprimaryreason_display','ewcomments','sp_surg_date']
+    rescinded_cols = ['redcap_data_access_group_display','record_id','obtain_date','ewdateterm','ewprimaryreason_display','ewcomments','sp_surg_date']
     rescinded = rescinded[rescinded_cols]
 
     # Display record id as int
     rescinded.record_id = rescinded.record_id.astype('int32')
 
     # convert datetime columns to just date
-    for date_col in ['date_and_time','ewdateterm']:
+    for date_col in ['obtain_date','ewdateterm']:
         rescinded[date_col] = rescinded[date_col].dt.date
 
     # TO DO: need to convert reasons to text reasons
@@ -409,7 +409,6 @@ def get_deviation_records(df, multi_data, display_terms_mapping):
     deviations = deviations.merge(deviation_terms, how='left', on='erep_protdev_type')
 
     return deviations
-
 
 def get_deviations_by_center(centers, df, deviations, display_terms_dict):
     dev_cols = ['record_id','redcap_data_access_group_display','start_v1_preop']
