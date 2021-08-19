@@ -738,17 +738,16 @@ def rollup_demo_data(demo_df, demo_col, display_terms_dict, display_term_key):
 def rollup_with_split_col(demo_df, demo_col, display_terms_dict, display_term_key, split_col):
     rollup = rollup_demo_data(demo_df, demo_col, display_terms_dict, display_term_key)
     rollup.columns =[demo_col,
-                 ('All', 'Count'),
-                 ('All', 'Percent')]
+                 'All::Count',
+                 'All::Percent']
     for i in list(demo_df[split_col].unique()):
         df = demo_df[demo_df[split_col] == i]
         i_rollup = rollup_demo_data(df, demo_col, display_terms_dict, display_term_key)
         i_rollup.columns =[demo_col,
-                 (str(i), 'Count'),
-                 (str(i), 'Percent')]
+                 str(split_col) + str(i) + '::Count',
+                 str(split_col) + str(i) + '::Percent']
         rollup = rollup.merge(i_rollup, how='left', on=demo_col)
-    rollup.rename(columns={demo_col: ('',demo_col)}, inplace=True)
-    rollup.columns = pd.MultiIndex.from_tuples(rollup.columns)
+    rollup.rename(columns={demo_col: '::'+demo_col}, inplace=True)
     return rollup
 
 def get_describe_col(df, describe_col, round_rows = {2:['mean', 'std']}):
@@ -760,12 +759,13 @@ def get_describe_col(df, describe_col, round_rows = {2:['mean', 'std']}):
 
 def get_describe_col_subset(df, describe_col, subset_col, round_rows = {2:['mean', 'std']}):
     df_describe = get_describe_col(df, describe_col)
-    df_describe.columns = ['index',describe_col + ': All']
+    df_describe.columns = ['::index',describe_col + '::All']
     for i in list(df[subset_col].unique()):
         i_df = df[df[subset_col] == i]
         i_describe = get_describe_col(i_df, describe_col)
-        i_describe.columns = ['index',describe_col + ': ' + subset_col + str(i)]
-        df_describe = df_describe.merge(i_describe, how='left', on='index')
+        i_describe.columns = ['::index',describe_col + '::' + subset_col + str(i)]
+        df_describe = df_describe.merge(i_describe, how='left', on='::index')
+    df_describe.rename(columns={'::index': '::'}, inplace=True)
     return df_describe
 
 # ----------------------------------------------------------------------------

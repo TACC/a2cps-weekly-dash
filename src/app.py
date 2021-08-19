@@ -49,7 +49,8 @@ display_terms_file = 'A2CPS_display_terms.csv'
 # Data Loading
 api_url = 'https://redcap.tacc.utexas.edu/api/vbr.php'
 mcc_list = [1,2]
-user_token = '' # ENTER REDCAP USER TOKEN HERE
+# REDCAP_TOKEN = '2D2CD72BE831AC589E825DC9BD413663' # ENTER REDCAP USER TOKEN HERE
+REDCAP_TOKEN = os.environ.get("REDCAP_TOKEN",'').replace("'","")
 
 
 # ----------------------------------------------------------------------------
@@ -113,13 +114,24 @@ def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, api_url, mcc
         excel_sheet_name = excel_sheet_names[i]
         data_source = tables[i]
 
+
+        columns_list = []
         if(data_source.columns.nlevels == 2):
-            columns_list = []
             for i in data_source.columns:
                 columns_list.append({"name": [i[0],i[1]], "id": i[1]})
             data_source.columns = data_source.columns.droplevel()
+
         else:
-            columns_list = [{"name": i, "id": i} for i in data_source.columns]
+            if '::' in data_source.columns[0]:
+                for i in data_source.columns:
+                    col_split = i.split('::')
+                    col_name = []
+                    for x in col_split:
+                        col_name.append(x)
+                    columns_list.append({"name": col_name, "id": i })
+
+            else:
+                columns_list = [{"name": i, "id": i} for i in data_source.columns]
 
         tables_dict[table_name] = {'excel_sheet_name': excel_sheet_name,
                                     'columns_list': columns_list,
@@ -303,12 +315,14 @@ def build_page_layout(toggle_view_value, sections_dict):
                     ])
     return page_layout
 
+
 def serve_layout():
     page_meta_dict, tables_dict, sections_dict = {}, {}, {}
+    page_meta_dict['report_date_msg'] = 'This report could not be generated. Please contact the team.'
 
+    page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file, api_url, mcc_list, REDCAP_TOKEN)
 
     try:
-        page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file, api_url, mcc_list, user_token)
         section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
         sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
         page_layout = html.Div(id='page_layout')
@@ -334,8 +348,6 @@ def serve_layout():
                 ),
             ],id='print-hide', className='print-hide'),
 
-            html.Div(),
-
             html.H5(page_meta_dict['report_date_msg']),
             html.Div(id='download-msg'),
             page_layout,
@@ -350,8 +362,8 @@ app.layout = serve_layout
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
-#
-# Use toggle to display either tabs or single page LAYOUT
+
+#Use toggle to display either tabs or single page LAYOUT
 @app.callback(Output("page_layout","children"), Input('toggle-view',"value"),State('store_sections', 'data'))
 def set_page_layout(value, sections):
     return build_page_layout(value, sections)
