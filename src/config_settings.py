@@ -40,4 +40,4 @@ def get_django_user():
 DATA_PATH = pathlib.Path(__file__).parent.joinpath("data")
 ASSETS_PATH = pathlib.Path(__file__).parent.joinpath("assets")
 REQUESTS_PATHNAME_PREFIX = os.environ.get("REQUESTS_PATHNAME_PREFIX", "/")
-REDCAP_TOKEN = os.environ.get("REDCAP_TOKEN","")
+REDCAP_TOKEN_ENV = os.environ.get("REDCAP_TOKEN","")

@@ -12,9 +12,26 @@ import datetime
 from datetime import datetime, timedelta
 
 # ----------------------------------------------------------------------------
-# MAIN DATA Loading and Prep
+# DATA DISPLAY DICTIONARIES
 # ----------------------------------------------------------------------------
-# Display Dictionary
+
+def load_display_terms(ASSETS_PATH, display_terms_file):
+    try:
+        display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
+
+        # Get display terms dictionary for one-to-one records
+        display_terms_uni = display_terms[display_terms.multi == 0]
+        display_terms_dict = get_display_dictionary(display_terms_uni, 'api_field', 'api_value', 'display_text')
+
+        # Get display terms dictionary for one-to-many records
+        display_terms_multi = display_terms[display_terms.multi == 1]
+        display_terms_dict_multi = get_display_dictionary(display_terms_multi, 'api_field', 'api_value', 'display_text')
+
+        return display_terms, display_terms_dict, display_terms_dict_multi
+    except Exception as e:
+        print(e)
+        return None
+
 def get_display_dictionary(display_terms, api_field, api_value, display_col):
     '''from a dataframe with the table display information, create a dictionary by field to match the database
     value to a value for use in the UI '''
@@ -35,80 +52,104 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
         print(e)
         return None
 
-def load_display_terms(ASSETS_PATH, display_terms_file):
+# ----------------------------------------------------------------------------
+# DATA Loading
+# ----------------------------------------------------------------------------
+
+def load_weekly_api_data(api_url, mcc_list, api_token):
+    weekly_data = pd.DataFrame()
+    headers = {'Token': api_token}
+    for mcc in mcc_list:
+        data= {'op': 'weekly', 'mcc': mcc}
+        try:
+            mcc_json = requests.post(
+                api_url,
+                headers=headers,
+                data= data
+            )
+            mcc_json = mcc_json.json()
+            mcc_data = pd.DataFrame.from_dict(mcc_json, orient = 'index').reset_index()
+            mcc_data['mcc'] = mcc
+
+            if weekly_data.empty:
+                weekly_data = mcc_data
+            else:
+                weekly_data = pd.concat([weekly_data, mcc_data])
+        except:
+            weekly_data = weekly_data
+    weekly_data = weekly_data.reset_index(drop=True)
+    if 'index' in weekly_data.columns:
+        weekly_data.rename(columns={"index": "record_id"}, inplace=True)
+    return weekly_data
+
+def extract_adverse_effects_data(weekly_data):
+    # reset index using index_cols
+    weekly_data = weekly_data.set_index(['record_id', 'mcc'])
+    # Extract multi data values
+    multi_df = weekly_data[['adverse_effects']].dropna()
+    # Convert from data frame back to dict
+    multi_dict = multi_df.to_dict('index')
+    # Turn dict into df with multi=index and reset_index
+    multi = pd.DataFrame.from_dict({(i,k): multi_dict[i][j][k]
+                               for i in multi_dict.keys()
+                               for j in multi_dict[i].keys()
+                               for k in multi_dict[i][j].keys()
+                           },
+                           orient='index')
+    # Replace empty strings with NaN
+    multi = multi.replace(r'^\s*$', np.nan, regex=True)
+    multi = multi.reset_index()
+    multi[['record_id', 'mcc']] = pd.DataFrame(multi['level_0'].tolist(), index=multi.index)
+    multi['instance'] = multi['level_1']
+    multi.drop(['level_0', 'level_1'], axis=1, inplace=True)
+#     multi.set_index(['record_id','instance','mcc'], inplace=True)
+    return multi
+
+# ----------------------------------------------------------------------------
+# DATA CLEANING
+# ----------------------------------------------------------------------------
+
+def clean_weekly_data(weekly, display_terms_dict):
     try:
-        display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
+        # Convert all string 'N/A' values to nan values
+        weekly = weekly.replace('N/A', np.nan)
 
-        # Get display terms dictionary for one-to-one records
-        display_terms_uni = display_terms[display_terms.multi == 0]
-        display_terms_dict = get_display_dictionary(display_terms_uni, 'api_field', 'api_value', 'display_text')
+        # Handle 1-many dem_race, take multi-select values and convert to 8
+        weekly['dem_race_original'] = weekly['dem_race']
+        weekly.loc[(weekly.dem_race.str.contains('|', regex=False, na=False)),'dem_race']='8'
 
-        # Get display terms dictionary for one-to-many records
-        display_terms_multi = display_terms[display_terms.multi == 1]
-        display_terms_dict_multi = get_display_dictionary(display_terms_multi, 'api_field', 'api_value', 'display_text')
+        # Coerce numeric values to enable merge
+        weekly = weekly.apply(pd.to_numeric, errors='ignore')
 
-        return display_terms, display_terms_dict, display_terms_dict_multi
-    except Exception as e:
-        print(e)
-        return None
-
-
-# path to Data APIs and reference files / load data
-# Weekly Data from csv
-def load_weekly_data(weekly_csv, display_terms_dict):
-    try:
-        df = pd.read_csv(weekly_csv)
-        df = df.apply(pd.to_numeric, errors='ignore')
+        for i in display_terms_dict.keys():
+            if i in weekly.columns:
+                display_terms = display_terms_dict[i]
+                if weekly[i].dtype == np.float64:
+                    # for display columns where data is numeric, merge on display dictionary, treating cols as floats to handle nas
+                    display_terms[i] = display_terms[i].astype('float64')
+                weekly = weekly.merge(display_terms, how='left', on=i)
 
         # convert date columns from object --> datetime datatypes as appropriate
         datetime_cols_list = ['date_of_contact','date_and_time','obtain_date','ewdateterm'] #erep_local_dtime also dates, but currently an array
-        df[datetime_cols_list] = df[datetime_cols_list].apply(pd.to_datetime)
-        for i in display_terms_dict.keys():
-            if i in df.columns:
-                df = df.merge(display_terms_dict[i], how='left', on=i)
-        # Get subset of consented patients
-        # get data subset of just consented patients
-        consented = df[df.record_id.notnull()].copy()
-        return df, consented
+        weekly[datetime_cols_list] = weekly[datetime_cols_list].apply(pd.to_datetime, errors='coerce')
+
+        # Get subset of consented patients, i.e. main_record_id exists
+        consented = weekly[weekly.obtain_date.notnull()].copy()
+
+        return weekly, consented
+
     except Exception as e:
         print(e)
         return None, None
 
-# Load data from API for One-to-Many data points per record ID
-def get_multi_row_data(json_api_url):
-    ''' Take the adverse effects JSON and convert into a data frame for analysis.
-
-        API returns data in the format [{record_id:
-                                            {instance:
-                                                {field:value}
-                                            }
-                                        }] '''
-
-    df = pd.DataFrame() # create empty dataframe
+def clean_adverse_events(adverse_events, display_terms_dict_multi):
     try:
-        multi_dict = requests.get(json_api_url).json()
-        for i in multi_dict:
-            for key in i.keys():
-                df_key = pd.DataFrame.from_dict(i[key], orient='index') #.reset_index()
-                seq = [key] * len(df_key)
-                df_key = df_key.reindex(['record_id', *df_key.columns], axis=1).assign(record_id= seq)
-                df = pd.concat([df, df_key], axis = 0)
-        df = df.reset_index()
-        df = df.rename(columns={'index': 'instance'})
-        return df
-    except Exception as e:
-        print(e)
-        return None
-
-def load_multi_data(multi_row_json, display_terms_dict_multi):
-    try:
-        # Load data and coerce to numeric
-        multi_data = get_multi_row_data(multi_row_json)
-        multi_data = multi_data.apply(pd.to_numeric, errors='ignore')
+        # Coerce to numeric
+        multi_data = adverse_events.apply(pd.to_numeric, errors='ignore')
 
         # convert date columns from object --> datetime datatypes as appropriate
         multi_datetime_cols = ['erep_local_dtime','erep_ae_date','erep_onset_date','erep_resolution_date']
-        multi_data[multi_datetime_cols] = multi_data[multi_datetime_cols].apply(pd.to_datetime)
+        multi_data[multi_datetime_cols] = multi_data[multi_datetime_cols].apply(pd.to_datetime, errors='coerce')
 
         # Convert numeric values to display values using dictionary
         for i in display_terms_dict_multi.keys():
@@ -124,17 +165,26 @@ def load_multi_data(multi_row_json, display_terms_dict_multi):
 # Get dataframes and parameters
 # ----------------------------------------------------------------------------
 
-def get_data_for_page(ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
-    # Get dataframes
+def get_data_for_page(ASSETS_PATH, display_terms_file, api_url, mcc_list, REDCAP_TOKEN):
+    ''' Take the input parameters, files and project specific functions to create base dataframes for use in the page '''
+    # Load display dictionaries to turn numeric values into display values
     display_terms, display_terms_dict, display_terms_dict_multi =  load_display_terms(ASSETS_PATH, display_terms_file)
-    df, consented = load_weekly_data(weekly_csv, display_terms_dict)
-    multi_data = load_multi_data(multi_row_json, display_terms_dict_multi)
 
-    centers_list = df.redcap_data_access_group_display.unique()
+    # Load data from API
+    weekly = load_weekly_api_data(api_url, mcc_list, REDCAP_TOKEN)
+
+    # Extract the one-to-many data from the adverse effects column nested dictionary
+    adverse_events = extract_adverse_effects_data(weekly)
+
+    # Clean loaded data
+    clean_weekly, consented = clean_weekly_data(weekly, display_terms_dict)
+    clean_adverse = clean_adverse_events(adverse_events, display_terms_dict_multi)
+
+    # Get list of centers to use in the system
+    centers_list = clean_weekly.redcap_data_access_group_display.unique()
     centers_df = pd.DataFrame(centers_list, columns = ['redcap_data_access_group_display'])
 
-    return display_terms, display_terms_dict, display_terms_dict_multi, df, consented, multi_data, centers_df
-
+    return display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, clean_adverse, centers_df
 
 def get_time_parameters(end_report, report_days_range = 7):
     today = datetime.now()
@@ -151,7 +201,7 @@ def get_time_parameters(end_report, report_days_range = 7):
 def get_table_1(df):
     try:
        # Define needed columns for this table and select subset from main dataframe
-        t1_cols = ['redcap_data_access_group_display','participation_interest_display','screening_id']
+        t1_cols = ['redcap_data_access_group_display','participation_interest_display','record_id']
         t1 = df[t1_cols]
 
         # drop missing data rows
@@ -164,7 +214,7 @@ def get_table_1(df):
         t1 = t1.reset_index()
 
         # Pivot participation interest values into separate columns
-        t1 = t1.pivot(index=['redcap_data_access_group_display'], columns='participation_interest_display', values='screening_id')
+        t1 = t1.pivot(index=['redcap_data_access_group_display'], columns='participation_interest_display', values='record_id')
 
         # Reset Index so center is a column
         t1 = t1.reset_index()
@@ -190,11 +240,11 @@ def get_table_1(df):
 
 def get_table_2a(df, display_terms_t2a):
     # Get decline columns from dataframe where participant was not interested (participation_interest == 0)
-    t2_cols = ['screening_id','redcap_data_access_group_display','reason_not_interested', 'ptinterest_comment'] # cols to select
+    t2_cols = ['main_record_id','redcap_data_access_group_display','reason_not_interested', 'ptinterest_comment'] # cols to select
     t2 = df[df.participation_interest == 0][t2_cols]
 
-    # group data by center and count the # of screening_ids
-    t2_site_count = pd.DataFrame(t2.groupby('redcap_data_access_group_display')['screening_id'].size())
+    # group data by center and count the # of main_record_ids
+    t2_site_count = pd.DataFrame(t2.groupby('redcap_data_access_group_display')['main_record_id'].size())
 
     # rename aggregate column
     t2_site_count.columns = ['Total Declined']
@@ -253,9 +303,13 @@ def get_table_2b(df, start_report, end_report):
 def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     t3 = df
     # Get eligible patients using sp field logic
-    eligible_cols = ['sp_inclcomply', 'sp_inclage1884' , 'sp_inclsurg','sp_exclarthkneerep','sp_exclinfdxjoint','sp_exclnoreadspkenglish','sp_mricompatscr' ]
-    eligible = (t3.sp_inclcomply ==1) & (t3.sp_inclage1884 ==1) & (t3.sp_inclsurg ==1) & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0) & (t3.sp_exclnoreadspkenglish ==0) & (t3.sp_mricompatscr ==4)
-    t3['eligible'] = eligible
+#    eligible_cols = ['sp_inclcomply', 'sp_inclage1884' , 'sp_inclsurg','sp_exclarthkneerep','sp_exclinfdxjoint','sp_exclnoreadspkenglish','sp_mricompatscr' ]
+#     eligible = (t3.sp_inclcomply ==1) & (t3.sp_inclage1884 ==1) & (t3.sp_inclsurg ==1) & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0) & (t3.sp_exclnoreadspkenglish ==0) & (t3.sp_mricompatscr ==4)
+# Update logic to reflect addition of back patients at MCC2s who use different columns to assess
+    eligible_short = (t3.sp_inclcomply ==1) & (t3.sp_inclage1884 ==1) & (t3.sp_inclsurg ==1) & (t3.sp_exclnoreadspkenglish ==0) & (t3.sp_mricompatscr ==4)
+    eligible_knee = (t3.mcc == 1) & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0)
+    eligible_back = (t3.mcc == 2) & (t3.sp_exclothmajorsurg ==0) & (t3.sp_exclprevbilthorpro ==0)
+    t3['eligible'] = (eligible_short & eligible_knee) | (eligible_short & eligible_back)
 
     # Get conset within last days range days
     within_days_range = ((end_report_date - t3.obtain_date).dt.days) <= days_range
@@ -265,7 +319,7 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     # Set the columns to groupby, and the the columns to role up with desired aggregating functions
     # Note: can supply a list of aggregate functions to one columnm i.e. 'col_name': ['min','max']
     cols_for_groupby = ["redcap_data_access_group_display"]
-    aggregate_columns_dict={'screening_id':'count',
+    aggregate_columns_dict={'main_record_id':'count',
                             'obtain_date':'max',
                              'eligible':'sum',
                              'ewdateterm':'count',
@@ -280,13 +334,13 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     t3_aggregate['days_since_consent'] = (end_report_date.date() - t3_aggregate['obtain_date'].dt.date).astype(str)
 
     # Calculate # of ineligible from total - eligible
-    t3_aggregate['ineligible'] = t3_aggregate['screening_id'] - t3_aggregate['eligible']
+    t3_aggregate['ineligible'] = t3_aggregate['main_record_id'] - t3_aggregate['eligible']
 
 
     # Rename and reorder columns for display
     consent_range_col_name = 'Consents in last ' + str(days_range) +' Days'
     rename_dict = {'redcap_data_access_group_display':'Center Name',
-                    'screening_id':'Consented',
+                    'main_record_id':'Consented',
                     'days_since_consent':'Days Since Last Consent',
                     'within_range':consent_range_col_name,
                    'eligible':'Total Eligible',
@@ -307,17 +361,18 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     return t3, t3_aggregate
 
 
+
 # ----------------------------------------------------------------------------
 # Study Status Tables
 # ----------------------------------------------------------------------------
 def get_table_4(centers, consented_patients, compare_date = datetime.now()):
-    # select table4 columns for patients with a record id
-    table4_cols = ["record_id", "redcap_data_access_group_display", "start_v1_preop","sp_surg_date",
+    # select table4 columns for patients with a main record id
+    table4_cols = ["main_record_id", "redcap_data_access_group_display", "start_v1_preop","sp_surg_date",
                    "start_v2_6wk","start_v3_3mo","start_6mo","start_12mo", 'ewdateterm']
     table4 = consented_patients[table4_cols]
 
     # Sort by record ID
-    table4 = table4.sort_values(by=['record_id'])
+    table4 = table4.sort_values(by=['main_record_id'])
 
     # Flag patients with complete surgeries
     table4['sp_surg_date'] = table4['sp_surg_date'].apply(pd.to_datetime)
@@ -327,7 +382,7 @@ def get_table_4(centers, consented_patients, compare_date = datetime.now()):
     table4['ewdateterm'] = table4['ewdateterm'].notnull()
 
     # Aggregate table 4
-    agg_dict = {'record_id':'size',
+    agg_dict = {'main_record_id':'size',
                 'start_v1_preop':'sum','surg_complete':'sum','start_v2_6wk': 'sum',
                 'start_v3_3mo': 'sum', 'start_6mo': 'sum', 'start_12mo': 'sum','ewdateterm': 'sum',}
     table4_agg = table4.groupby('redcap_data_access_group_display').agg(agg_dict).reset_index()
@@ -344,7 +399,7 @@ def get_table_4(centers, consented_patients, compare_date = datetime.now()):
 
     # Rename columns
     rename_cols_dict = {'redcap_data_access_group_display':'Center',
-                        'record_id': 'Consented',
+                        'main_record_id': 'Consented',
                         'start_v1_preop': 'Baseline',
                         'surg_complete': 'Surgery Complete',
                         'start_v2_6wk':'6 week',
@@ -363,11 +418,11 @@ def get_table_4(centers, consented_patients, compare_date = datetime.now()):
 def get_tables_5_6(df):
     # Get patients who rescinded consent, i.e. have a value in the 'ewdateterm' column
     rescinded = df.dropna(subset=['ewdateterm'])
-    rescinded_cols = ['redcap_data_access_group_display','record_id','obtain_date','ewdateterm','ewprimaryreason_display','ewcomments','sp_surg_date']
+    rescinded_cols = ['redcap_data_access_group_display','main_record_id','obtain_date','ewdateterm','ewprimaryreason_display','ewcomments','sp_surg_date']
     rescinded = rescinded[rescinded_cols]
 
-    # Display record id as int
-    rescinded.record_id = rescinded.record_id.astype('int32')
+    # Display main record id as int
+    rescinded.main_record_id = rescinded.main_record_id.astype('int32')
 
     # convert datetime columns to just date
     for date_col in ['obtain_date','ewdateterm']:
@@ -376,14 +431,14 @@ def get_tables_5_6(df):
     # TO DO: need to convert reasons to text reasons
     # Rename columns to user friendly versions
     rescinded.columns =['Center Name', 'Record ID', 'Consent Date',
-       'Early Termination Date', 'Reason', 'Comments', 'sp_surg_date']
+       'Early Termination Date', 'Reason', 'Comments', 'Surgery Date']
 
     # Split dataset into leaving before pr after surgery
-    rescinded_pre_surgery = rescinded[rescinded.sp_surg_date.isna()].drop(['sp_surg_date'],axis=1)
+    rescinded_pre_surgery = rescinded[rescinded['Surgery Date'].isna()].drop(['Surgery Date'],axis=1)
     if len(rescinded_pre_surgery) == 0:
             rescinded_pre_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
 
-    rescinded_post_surgery = rescinded.dropna(subset=['sp_surg_date'])
+    rescinded_post_surgery = rescinded.dropna(subset=['Surgery Date'])
     if len(rescinded_post_surgery) == 0:
             rescinded_post_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
 
@@ -392,23 +447,20 @@ def get_tables_5_6(df):
 # ----------------------------------------------------------------------------
 # Deviation & Adverse Event Tables
 # ----------------------------------------------------------------------------
-def get_deviation_records(df, multi_data, display_terms_mapping):
-    # Get Data on Protocol deviations
-    deviation_flag_cols = ['erep_prot_dev']
-    deviations_cols = ['record_id', 'instance','erep_local_dtime',
-           'erep_protdev_type', 'erep_protdev_desc',
+def get_deviation_records(weekly, adverse_events):
+    # Set which columns to select
+    deviations_cols = ['record_id', 'mcc', 'instance','erep_local_dtime',
+           'erep_protdev_type','erep_protdev_type_display','erep_protdev_desc',
            'erep_protdev_caplan']
-    deviations = multi_data.dropna(subset=deviation_flag_cols)[deviations_cols ]
+
+    # Get Data on Protocol deviations separate from adverse events
+    deviations = adverse_events[adverse_events.erep_protdev_type.notnull()][deviations_cols]
 
     # Merge deviations with center info
-    deviations = deviations.merge(df[['redcap_data_access_group','redcap_data_access_group_display','record_id','start_v1_preop']], how='left', on = 'record_id')
-
-    # Convert deviation type to text
-    deviation_terms = display_terms_mapping['erep_protdev_type']
-    deviation_terms.columns = ['erep_protdev_type','Deviation']
-    deviations = deviations.merge(deviation_terms, how='left', on='erep_protdev_type')
+    deviations = deviations.merge(weekly[['redcap_data_access_group','redcap_data_access_group_display','record_id','mcc','start_v1_preop']], how='left', on = ['record_id','mcc'])
 
     return deviations
+
 
 def get_deviations_by_center(centers, df, deviations, display_terms_dict):
     dev_cols = ['record_id','redcap_data_access_group_display','start_v1_preop']
@@ -429,10 +481,10 @@ def get_deviations_by_center(centers, df, deviations, display_terms_dict):
 
     # Get Deviation Pivot by center
     centers_dev = centers.merge(display_terms_dict['erep_protdev_type'], how='cross')
-    dev_by_center = deviations[['record_id','Deviation', 'instance','redcap_data_access_group_display']]
-    dev_by_center = dev_by_center.groupby(by=['redcap_data_access_group_display','Deviation'],as_index=False).size()
-    centers_dev = centers_dev.merge(dev_by_center, how='outer', on=['redcap_data_access_group_display','Deviation']).fillna(0)
-    dev_by_center_pivot =  pd.pivot_table(centers_dev, index=["redcap_data_access_group_display"], columns=["Deviation"], values=["size"])
+    dev_by_center = deviations[['record_id','erep_protdev_type_display', 'instance','redcap_data_access_group_display']]
+    dev_by_center = dev_by_center.groupby(by=['redcap_data_access_group_display','erep_protdev_type_display'],as_index=False).size()
+    centers_dev = centers_dev.merge(dev_by_center, how='outer', on=['redcap_data_access_group_display','erep_protdev_type_display']).fillna(0)
+    dev_by_center_pivot =  pd.pivot_table(centers_dev, index=["redcap_data_access_group_display"], columns=["erep_protdev_type_display"], values=["size"])
     dev_by_center_pivot.columns = dev_by_center_pivot.columns.droplevel()
     dev_by_center_pivot.columns.name = ''
     dev_by_center_pivot = dev_by_center_pivot.reset_index()
@@ -494,7 +546,7 @@ def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_ra
     table7b = table7b.sort_values(['erep_local_dtime', 'record_id', 'erep_protdev_type'], ascending=[False, True, True])
 
     #select columns for display and rename
-    table7b_cols = ['redcap_data_access_group_display','record_id', 'erep_local_dtime', 'Deviation',
+    table7b_cols = ['redcap_data_access_group_display','record_id', 'erep_local_dtime', 'erep_protdev_type_display',
        'erep_protdev_desc', 'erep_protdev_caplan']
     table7b_cols_new_names = ['Center Name','PID', 'Deviation Date', 'Deviation',
        'Description', 'Corrective Action']
@@ -507,18 +559,22 @@ def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_ra
 
     return table7b
 
-def get_adverse_event_records(df, multi_data, display_terms_dict_multi):
-    # Get Data on Adverse Events
-    adverse_event_cols = ['record_id', 'instance','erep_ae_yn','erep_ae_relation', 'erep_ae_severity', 'erep_ae_serious',
-            'erep_onset_date', 'erep_ae_desc', 'erep_action_taken', 'erep_outcome']
-    adverse_events = multi_data[multi_data.erep_ae_yn==1][adverse_event_cols]
+
+def get_adverse_event_records(weekly, adverse_events):
+    # Set which columns to select
+    adverse_event_flag_cols = ['erep_ae_yn'] # must = 1
+    adverse_event_cols = ['record_id', 'mcc', 'instance','erep_ae_yn','erep_ae_relation', 'erep_ae_severity', 'erep_ae_serious',
+            'erep_onset_date', 'erep_ae_desc', 'erep_action_taken', 'erep_outcome','erep_ae_yn_display',
+       'erep_ae_severity_display', 'erep_ae_relation_display',
+       'erep_ae_serious_display']
+
+    # Get Data on adverse events separate from Protocol deviations
+    ae = adverse_events[adverse_events.erep_ae_yn==1][adverse_event_cols]
 
     # Merge adverse events with center info
-    adverse_events = adverse_events.merge(df[['redcap_data_access_group_display','record_id']], how='left', on = 'record_id')
-    for num_col in ['erep_ae_yn', 'erep_ae_severity', 'erep_ae_relation', 'erep_ae_serious']:
-        adverse_events = adverse_events.merge(display_terms_dict_multi[num_col], how='left', on=num_col)
+    ae = ae.merge(weekly[['redcap_data_access_group','redcap_data_access_group_display','record_id','mcc','sp_surg_date']], how='left', on = ['record_id','mcc'])
 
-    return adverse_events
+    return ae
 
 def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapping):
     # Select subset of patients who have had baseline visits (start_v1_preop not null), using record_id as unique identifier
@@ -592,10 +648,11 @@ def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapp
 
     return centers_ae
 
-def get_table_8b(event_records, end_report, report_days = 7):
+def get_table_8b(event_records, end_report, report_days = 30):
     table8b_cols_dict = {'redcap_data_access_group_display':'Center',
                     'record_id':'PID',
                     'erep_onset_date':'AE Date',
+                         'sp_surg_date': 'Surgery Date',
                    'erep_ae_severity_display':'Severity',
                     'erep_ae_relation_display':'Relationship',
 #                     'erep_ae_serious_display':'Serious',
@@ -603,12 +660,15 @@ def get_table_8b(event_records, end_report, report_days = 7):
                     'erep_action_taken':'Action',
                     'erep_outcome':'Outcome'}
     table8b_cols = table8b_cols_dict.keys()
+    table8b = event_records[table8b_cols].copy()
 
-    # Get report start date
-    start_report = end_report - timedelta(days=report_days)
+    # Limit report if report_days is not None
+    if report_days:
+        # Get report start date
+        start_report = end_report - timedelta(days=report_days)
 
-    # Get records that are adverse envet records in the time frame of report
-    table8b = event_records[(event_records.erep_ae_yn==1) & (event_records.erep_onset_date > start_report) &  (event_records.erep_onset_date <= end_report) ][table8b_cols]
+        # Get records that are adverse envet records in the time frame of report
+        table8b = table8b[(table8b.erep_onset_date > start_report) &  (table8b.erep_onset_date <= end_report)]
 
     # convert datetime column to show date
     table8b.erep_onset_date = table8b.erep_onset_date.dt.strftime('%m/%d/%Y')
@@ -628,7 +688,7 @@ def get_table_8b(event_records, end_report, report_days = 7):
 # Demographics Tables
 # ----------------------------------------------------------------------------
 def get_demographic_data(df):
-    id_cols = ['screening_id','redcap_data_access_group_display', 'ewdateterm']
+    id_cols = ['record_id','mcc','redcap_data_access_group_display', 'ewdateterm']
     demo_cols = ['age', 'dem_race_display', 'ethnic_display',  'sex_display']
     screening_cols = ['screening_age', 'screening_race_display', 'screening_ethnicity_display', 'screening_gender_display']
     demo= df[id_cols + demo_cols + screening_cols].copy()
@@ -657,7 +717,7 @@ def get_demographic_data(df):
     demo['Status'] = np.where(demo.ewdateterm == 'Unknown', 'Active', 'Inactive')
 
     # 5) Rename Columns
-    demo.columns = ['ID', 'Center Name', 'Termination Date','Age', 'Race', 'Ethnicity', 'Sex', 'Status']
+    demo.columns = ['ID', 'MCC', 'Center Name', 'Termination Date','Age', 'Race', 'Ethnicity', 'Sex', 'Status']
 
     return demo
 
@@ -675,51 +735,94 @@ def rollup_demo_data(demo_df, demo_col, display_terms_dict, display_term_key):
     df_all.loc['All'] = df_all.sum(numeric_only=True, axis=0)
     return df_all
 
+def rollup_with_split_col(demo_df, demo_col, display_terms_dict, display_term_key, split_col):
+    rollup = rollup_demo_data(demo_df, demo_col, display_terms_dict, display_term_key)
+    rollup.columns =[demo_col,
+                 ('All', 'Count'),
+                 ('All', 'Percent')]
+    for i in list(demo_df[split_col].unique()):
+        df = demo_df[demo_df[split_col] == i]
+        i_rollup = rollup_demo_data(df, demo_col, display_terms_dict, display_term_key)
+        i_rollup.columns =[demo_col,
+                 (str(i), 'Count'),
+                 (str(i), 'Percent')]
+        rollup = rollup.merge(i_rollup, how='left', on=demo_col)
+    rollup.rename(columns={demo_col: ('',demo_col)}, inplace=True)
+    rollup.columns = pd.MultiIndex.from_tuples(rollup.columns)
+    return rollup
+
+def get_describe_col(df, describe_col, round_rows = {2:['mean', 'std']}):
+    df_describe = pd.DataFrame(df[describe_col].describe().reset_index())
+    if round_rows:
+        for k in round_rows.keys():
+            df_describe[describe_col] = np.where((df_describe['index'].isin(round_rows[k])), df_describe[describe_col].round(k).astype(str), df_describe[describe_col])
+    return df_describe
+
+def get_describe_col_subset(df, describe_col, subset_col, round_rows = {2:['mean', 'std']}):
+    df_describe = get_describe_col(df, describe_col)
+    df_describe.columns = ['index',describe_col + ': All']
+    for i in list(df[subset_col].unique()):
+        i_df = df[df[subset_col] == i]
+        i_describe = get_describe_col(i_df, describe_col)
+        i_describe.columns = ['index',describe_col + ': ' + subset_col + str(i)]
+        df_describe = df_describe.merge(i_describe, how='left', on='index')
+    return df_describe
+
 # ----------------------------------------------------------------------------
 # GET DATA FOR PAGE
 # ----------------------------------------------------------------------------
 
-def get_page_data(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
+def get_page_data(report_date, ASSETS_PATH, display_terms_file, api_url, mcc_list, REDCAP_TOKEN):
     ''' Load all the data for the page'''
-    display_terms, display_terms_dict, display_terms_dict_multi, df, consented, multi_data, centers_df  = get_data_for_page(ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
     today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
+    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, clean_adverse, centers_df = get_data_for_page(ASSETS_PATH, display_terms_file, api_url, mcc_list, REDCAP_TOKEN)
 
     ## SCREENING TABLES
-    table1 = get_table_1(df)
+    table1 = get_table_1(clean_weekly)
 
     display_terms_t2a = display_terms_dict_multi['reason_not_interested']
-    table2a = get_table_2a(df, display_terms_t2a)
+    table2a = get_table_2a(clean_weekly, display_terms_t2a)
 
-    table2b = get_table_2b(df, start_report, end_report)
+    table2b = get_table_2b(clean_weekly, start_report, end_report)
 
     table3_data, table3 = get_table_3(consented, today, 30)
 
     ## STUDY Status
     table4 = get_table_4(centers_df, consented, today)
 
-    table5, table6 = get_tables_5_6(df)
+    table5, table6 = get_tables_5_6(clean_weekly)
 
     ## Deviations
-    deviations = get_deviation_records(df, multi_data, display_terms_dict_multi)
+    deviations = get_deviation_records(clean_weekly, clean_adverse)
     table7a = get_deviations_by_center(centers_df, consented, deviations, display_terms_dict_multi)
     table7b = get_table7b_timelimited(deviations)
 
     ## Adverse Events
-    adverse_events = get_adverse_event_records(df, multi_data, display_terms_dict_multi)
-    table8a = get_adverse_events_by_center(centers_df, df, adverse_events, display_terms_dict_multi)
-    table8b = get_table_8b(adverse_events, today)
+    ae = get_adverse_event_records(clean_weekly, clean_adverse)
+    table8a = get_adverse_events_by_center(centers_df, clean_weekly, ae, display_terms_dict_multi)
+    table8b = get_table_8b(ae, today, None)
 
     ## Demographics
-
     demographics = get_demographic_data(consented)
     # get subset of active patients
     demo_active = demographics[demographics['Status']=='Active']
+    # Split breakouts by MCC
+    split_col = 'MCC'
 
-    sex  =  rollup_demo_data(demo_active, 'Sex', display_terms_dict, 'sex')
-    race = rollup_demo_data(demo_active, 'Race', display_terms_dict, 'dem_race')
-    ethnicity = rollup_demo_data(demo_active, 'Ethnicity', display_terms_dict, 'ethnic')
-    age = pd.DataFrame(demo_active.Age.describe().reset_index())
-    age_round_rows = ['mean', 'std']
-    age['Age'] = np.where((age['index'].isin(age_round_rows)), age['Age'].round(2).astype(str), age['Age'])
+    # SEX
+    demo_df, demo_col, display_terms_dict, display_term_key = demo_active, 'Sex', display_terms_dict, 'sex'
+    sex = rollup_with_split_col(demo_df, demo_col, display_terms_dict, display_term_key, split_col)
+
+    # RACE
+    demo_df, demo_col, display_terms_dict, display_term_key = demo_active, 'Race', display_terms_dict, 'dem_race'
+    race = rollup_with_split_col(demo_df, demo_col, display_terms_dict, display_term_key, split_col)
+
+    # ETHNICITY
+    demo_df, demo_col, display_terms_dict, display_term_key = demo_active, 'Ethnicity', display_terms_dict, 'ethnic'
+    ethnicity = rollup_with_split_col(demo_df, demo_col, display_terms_dict, display_term_key, split_col)
+
+    # AGE
+    age = get_describe_col_subset(demo_active, 'Age', 'MCC')
+
 
     return report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age

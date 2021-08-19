@@ -39,9 +39,17 @@ app = dash.Dash(__name__,
 # ----------------------------------------------------------------------------
 # POINTERS TO DATA FILES AND APIS
 # ----------------------------------------------------------------------------
+# Set date for reporting as today
+report_date = datetime.now()
+
+# Get access to display terms for data
 display_terms_file = 'A2CPS_display_terms.csv'
-weekly_csv = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=weekly' # Production
-multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=adverse_effects'
+
+## NEW API INFO ##
+# Data Loading
+api_url = 'https://redcap.tacc.utexas.edu/api/vbr.php'
+mcc_list = [1,2]
+user_token = '' # ENTER REDCAP USER TOKEN HERE
 
 
 # ----------------------------------------------------------------------------
@@ -87,8 +95,8 @@ def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = Fals
 # ----------------------------------------------------------------------------
 # TABS
 # ----------------------------------------------------------------------------
-def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
-    report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, api_url, mcc_list, REDCAP_TOKEN):
+    report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(report_date, ASSETS_PATH, display_terms_file, api_url, mcc_list, REDCAP_TOKEN)
     tables_names = ("table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
     excel_sheet_names = ("Screened", "Decline_Reasons", "Decline_Comments", "Consent", "Stud_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
     "Adverse_Events", "Adverse_Events_Description", "Gender", "Race", "Ethnicity", "Age")
@@ -297,17 +305,15 @@ def build_page_layout(toggle_view_value, sections_dict):
 
 def serve_layout():
     page_meta_dict, tables_dict, sections_dict = {}, {}, {}
+
+
     try:
-        page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+        page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file, api_url, mcc_list, user_token)
         section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
         sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
         page_layout = html.Div(id='page_layout')
     except:
         page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
-    if REDCAP_TOKEN:
-        rcap = 'token acquired'
-    else:
-        rcap = 'no token'
 
     s_layout = html.Div([
         dcc.Store(id='store_meta', data = page_meta_dict),
@@ -317,7 +323,6 @@ def serve_layout():
         Download(id="download-dataframe-html"),
 
         html.Div([
-            html.H1(rcap),
             html.H2(['A2CPS Weekly Report']),
             html.Div([
                 html.Button("Download as Excel",n_clicks=0, id="btn_xlxs",style =EXCEL_EXPORT_STYLE ),
@@ -328,19 +333,24 @@ def serve_layout():
                     style =EXCEL_EXPORT_STYLE
                 ),
             ],id='print-hide', className='print-hide'),
+
+            html.Div(),
+
             html.H5(page_meta_dict['report_date_msg']),
             html.Div(id='download-msg'),
             page_layout,
         ]
         , style =CONTENT_STYLE)
     ],style=TACC_IFRAME_SIZE)
+
     return s_layout
 
 app.layout = serve_layout
+
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
-
+#
 # Use toggle to display either tabs or single page LAYOUT
 @app.callback(Output("page_layout","children"), Input('toggle-view',"value"),State('store_sections', 'data'))
 def set_page_layout(value, sections):
