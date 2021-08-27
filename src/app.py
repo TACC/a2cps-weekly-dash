@@ -49,7 +49,7 @@ display_terms_file = 'A2CPS_display_terms.csv'
 # Data Loading
 api_url = 'https://redcap.tacc.utexas.edu/api/vbr.php'
 mcc_list = [1,2]
-# REDCAP_TOKEN = '2D2CD72BE831AC589E825DC9BD413663' # ENTER REDCAP USER TOKEN HERE
+
 REDCAP_TOKEN = os.environ.get("REDCAP_TOKEN",'').replace("'","")
 
 
