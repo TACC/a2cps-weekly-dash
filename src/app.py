@@ -40,8 +40,12 @@ app = dash.Dash(__name__,
 # POINTERS TO DATA FILES AND APIS
 # ----------------------------------------------------------------------------
 display_terms_file = 'A2CPS_display_terms.csv'
-weekly_csv = 'https://redcap.tacc.utexas.edu/api/vbr_api.php?op=weekly' # Production
-multi_row_json = 'https://redcap.tacc.utexas.edu/api/vbr_api_devel.php?op=adverse_effects'
+
+# Directions for locating file at TACC
+file_url_root ='https://api.a2cps.org/files/v2/download/public/system/a2cps.storage.community/reports'
+report = 'subjects'
+report_suffix = report + '-[mcc]-latest.json'
+mcc_list=[1,2]
 
 
 # ----------------------------------------------------------------------------
@@ -87,8 +91,8 @@ def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = Fals
 # ----------------------------------------------------------------------------
 # TABS
 # ----------------------------------------------------------------------------
-def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json):
-    report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list):
+    report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
     tables_names = ("table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
     excel_sheet_names = ("Screened", "Decline_Reasons", "Decline_Comments", "Consent", "Stud_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
     "Adverse_Events", "Adverse_Events_Description", "Gender", "Race", "Ethnicity", "Age")
@@ -296,9 +300,9 @@ def build_page_layout(toggle_view_value, sections_dict):
     return page_layout
 
 def serve_layout():
-    page_meta_dict, tables_dict, sections_dict = {}, {}, {}
+    page_meta_dict, tables_dict, sections_dict = {'report_date_msg':''}, {}, {}
     try:
-        page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file, weekly_csv, multi_row_json)
+        page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file,file_url_root, report, report_suffix, mcc_list)
         section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
         sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
         page_layout = html.Div(id='page_layout')
