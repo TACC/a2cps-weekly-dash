@@ -92,34 +92,39 @@ def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = Fals
 # TABS
 # ----------------------------------------------------------------------------
 def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list):
-    report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
-    tables_names = ("table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
-    excel_sheet_names = ("Screened", "Decline_Reasons", "Decline_Comments", "Consent", "Stud_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
-    "Adverse_Events", "Adverse_Events_Description", "Gender", "Race", "Ethnicity", "Age")
-
-    tables = (table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
-
     page_meta_dict = {}
-    page_meta_dict['report_date_msg'] = report_date_msg
-    page_meta_dict['report_range_msg'] = report_range_msg
-
     tables_dict = {}
-    for i in range(0,len(tables_names)):
-        table_name = tables_names[i]
-        excel_sheet_name = excel_sheet_names[i]
-        data_source = tables[i]
 
-        if(data_source.columns.nlevels == 2):
-            columns_list = []
-            for i in data_source.columns:
-                columns_list.append({"name": [i[0],i[1]], "id": i[1]})
-            data_source.columns = data_source.columns.droplevel()
-        else:
-            columns_list = [{"name": i, "id": i} for i in data_source.columns]
+    try:
+        report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
+        tables_names = ("table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
+        excel_sheet_names = ("Screened", "Decline_Reasons", "Decline_Comments", "Consent", "Stud_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
+        "Adverse_Events", "Adverse_Events_Description", "Gender", "Race", "Ethnicity", "Age")
 
-        tables_dict[table_name] = {'excel_sheet_name': excel_sheet_name,
-                                    'columns_list': columns_list,
-                                    'data': data_source.to_dict('records')  }
+        tables = (table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
+
+        page_meta_dict = {}
+        page_meta_dict['report_date_msg'] = report_date_msg
+        page_meta_dict['report_range_msg'] = report_range_msg
+
+        for i in range(0,len(tables_names)):
+            table_name = tables_names[i]
+            excel_sheet_name = excel_sheet_names[i]
+            data_source = tables[i]
+
+            if(data_source.columns.nlevels == 2):
+                columns_list = []
+                for i in data_source.columns:
+                    columns_list.append({"name": [i[0],i[1]], "id": i[1]})
+                data_source.columns = data_source.columns.droplevel()
+            else:
+                columns_list = [{"name": i, "id": i} for i in data_source.columns]
+
+            tables_dict[table_name] = {'excel_sheet_name': excel_sheet_name,
+                                        'columns_list': columns_list,
+                                        'data': data_source.to_dict('records')  }
+    except:
+        page_meta_dict = {'report_date_msg' : 'report_date_msg', 'report_range_msg':'report_range_msg'}
 
     return page_meta_dict, tables_dict
 
