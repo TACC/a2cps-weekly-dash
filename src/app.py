@@ -311,14 +311,14 @@ def build_page_layout(toggle_view_value, sections_dict):
 
 def serve_layout():
     page_meta_dict, tables_dict, sections_dict = {'report_date_msg':''}, {}, {}
-    try:
-        page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file,file_url_root, report, report_suffix, mcc_list)
-        section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
-        sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
-        page_layout = html.Div(id='page_layout')
-    except Exception as e:
-        traceback.print_exc()
-        page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
+    # try:
+    page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file,file_url_root, report, report_suffix, mcc_list)
+    section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
+    sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
+    page_layout = html.Div(id='page_layout')
+    # except Exception as e:
+    #     traceback.print_exc()
+    #     page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
 
     s_layout = html.Div([
         dcc.Store(id='store_meta', data = page_meta_dict),
