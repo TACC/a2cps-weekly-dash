@@ -1,8 +1,7 @@
 # ----------------------------------------------------------------------------
 # PYTHON LIBRARIES
 # ----------------------------------------------------------------------------
-import logging
-from logging.handlers import RotatingFileHandler
+import traceback
 
 # Dash Framework
 import dash
@@ -317,7 +316,7 @@ def serve_layout():
         sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
         page_layout = html.Div(id='page_layout')
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
 
     s_layout = html.Div([
@@ -395,10 +394,7 @@ def click_excel(n_clicks,store):
 # RUN APPLICATION
 # ----------------------------------------------------------------------------
 
-logger.warning('end application')
-
 if __name__ == '__main__':
-    app.server.logger.addHandler(handler)
     app.run_server(debug=True)
 else:
     server = app.server

@@ -1,5 +1,5 @@
  # Libraries
-import logging
+import traceback
 # Data
 # File Management
 import os # Operating system library
@@ -30,7 +30,7 @@ def load_display_terms(ASSETS_PATH, display_terms_file):
 
         return display_terms, display_terms_dict, display_terms_dict_multi
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 def get_display_dictionary(display_terms, api_field, api_value, display_col):
@@ -50,7 +50,7 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
         return display_terms_dict
 
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 
@@ -77,7 +77,7 @@ def get_subjects_data_from_local_file(mcc_list):
             weekly_data.rename(columns={"index": "record_id"}, inplace=True)
         return weekly_data
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
@@ -102,7 +102,7 @@ def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
             weekly_data.rename(columns={"index": "record_id"}, inplace=True)
         return weekly_data
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 def get_consented(weekly_data):
@@ -165,7 +165,7 @@ def clean_weekly_data(weekly, display_terms_dict):
         return weekly
 
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None, None
 
 def clean_adverse_events(adverse_events, display_terms_dict_multi):
@@ -184,7 +184,7 @@ def clean_adverse_events(adverse_events, display_terms_dict_multi):
 
         return multi_data
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 def get_screening_sites(ASSETS_PATH, df, id_col):
@@ -292,7 +292,7 @@ def get_table_1(df):
 
         return t1_sum
     except Exception as e:
-        print(e)
+        traceback.print_exc()
 
         return None
 def get_table_1_screening(df):
@@ -331,7 +331,7 @@ def get_table_1_screening(df):
 
         return t1_sum
     except Exception as e:
-        print(e)
+        traceback.print_exc()
 
         return None
 
