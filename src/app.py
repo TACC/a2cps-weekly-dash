@@ -155,7 +155,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table2a', 'table_2a')),
                 dcc.Markdown('''
-                    **Center Name:** MCC and Site
+                    **Site:** MCC and Screening Site
                     **Total Declined:** Total number of subjects screened
                     **Additional Columns:** Total number of subjects who sited that reason in declining.
                     *Note*: Subjects may report multiple reasons (or no reason) for declining.

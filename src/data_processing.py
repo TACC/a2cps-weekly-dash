@@ -381,6 +381,53 @@ def get_table_2a(df, display_terms_t2a):
     t2_site_count_detailed.loc['All Sites']= t2_site_count_detailed.sum(numeric_only=True, axis=0)
 
     return t2_site_count_detailed
+def get_table_2a_screening(df, display_terms_t2a):
+    # Get decline columns from dataframe where participant was not interested (participation_interest == 0)
+    t2_cols = ['record_id','screening_site','reason_not_interested', 'ptinterest_comment'] # cols to select
+    t2 = df[df.participation_interest == 0][t2_cols]
+
+    # group data by center and count the # of main_record_ids
+    t2_site_count = pd.DataFrame(t2.groupby('screening_site')['record_id'].size())
+
+    # rename aggregate column
+    t2_site_count.columns = ['Total Declined']
+
+    # reset table index to turn center from index --> column
+    t2_site_count = t2_site_count.reset_index()
+
+    # The reason_not_interested column is one-to-many so can contain a comma separated string of multiple values.
+    # Use the explode function to give each value its own row in the dataframe and drop rows with missing values
+    t2_reasons = t2.assign(reason_not_interested=t2['reason_not_interested'].str.split('|')).explode('reason_not_interested')
+    t2_reasons = t2_reasons.fillna(-1)
+
+    # Convert reasons column to numeric and merge with display terms dictionary
+    t2_reasons = t2_reasons.apply(pd.to_numeric, errors='ignore')
+
+    # Group the data by center and count number of entries by reason value
+    t2_reasons = pd.DataFrame(t2_reasons.groupby(['screening_site','reason_not_interested']).size())
+    t2_reasons.columns=['count']
+    t2_reasons = t2_reasons.reset_index()
+
+    # pivot table so the reasons are converted from values in a column to individual columns
+    t2_reasons = t2_reasons.pivot(index=['screening_site'],columns=['reason_not_interested'], values = 'count')
+
+    # Create dictionary from display terms dict to rename columns from int values
+    reason_display_dict = display_terms_t2a.set_index('reason_not_interested').to_dict()['reason_not_interested_display']
+
+    # Rename according to dictionary
+    t2_reasons = t2_reasons.rename(columns = reason_display_dict)
+
+    # Merge the reasons with the data on the total count of declines by center
+    # Note: the reasons may add up to < than total declined because the data entry allowed for NA. also possible more because
+    # patients could select more than one reason.
+    t2_site_count_detailed = t2_site_count.merge(t2_reasons, on='screening_site')
+    t2_site_count_detailed = t2_site_count_detailed.rename(columns = {'screening_site':'Site'})
+
+    # Fill missing data with 0 and sum across all sites
+    t2_site_count_detailed = t2_site_count_detailed.fillna(0)
+    t2_site_count_detailed.loc['All Sites']= t2_site_count_detailed.sum(numeric_only=True, axis=0)
+
+    return t2_site_count_detailed
 
 def get_table_2b(df, start_report, end_report):
     # Each decline includes a comment field - show these for the period of the report (previous 7 days)
@@ -392,6 +439,19 @@ def get_table_2b(df, start_report, end_report):
     # Rename and reorder columns for display
     decline_comments = decline_comments.rename(columns = {'redcap_data_access_group_display':'Center Name','ptinterest_comment':'Reason' })
     cols_display_order = ['Center Name', 'Reason']
+    decline_comments = decline_comments[cols_display_order]
+
+    return decline_comments
+def get_table_2b_screening(df, start_report, end_report):
+    # Each decline includes a comment field - show these for the period of the report (previous 7 days)
+    decline_comments = df[df.participation_interest == 0][['screening_site','date_of_contact','ptinterest_comment']].dropna()
+
+    # Show Comments during reporting period
+    decline_comments = decline_comments[(decline_comments.date_of_contact > start_report) & (decline_comments.date_of_contact <= end_report)]
+
+    # Rename and reorder columns for display
+    decline_comments = decline_comments.rename(columns = {'screening_site':'Site','ptinterest_comment':'Reason' })
+    cols_display_order = ['Site', 'Reason']
     decline_comments = decline_comments[cols_display_order]
 
     return decline_comments
@@ -877,9 +937,9 @@ def get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, r
     table1 = get_table_1_screening(screening_data)
 
     display_terms_t2a = display_terms_dict_multi['reason_not_interested']
-    table2a = get_table_2a(clean_weekly, display_terms_t2a)
+    table2a = get_table_2a_screening(screening_data, display_terms_t2a)
 
-    table2b = get_table_2b(clean_weekly, start_report, end_report)
+    table2b = get_table_2b_screening(screening_data, start_report, end_report)
 
     table3_data, table3 = get_table_3(consented, today, 30)
 
