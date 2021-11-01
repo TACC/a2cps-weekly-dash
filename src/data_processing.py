@@ -89,6 +89,9 @@ def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
             try:
                 json_url = '/'.join([file_url_root, report,report_suffix.replace('[mcc]',str(mcc))])
                 r = requests.get(json_url)
+                print(r.status_code)
+                # if r.status_code == 200:
+                ## TO DO: add an else statement to use local files if the request fails
                 mcc_json = r.json()
                 mcc_data = pd.DataFrame.from_dict(mcc_json, orient = 'index').reset_index()
                 mcc_data['mcc'] = mcc
