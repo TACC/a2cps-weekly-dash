@@ -134,7 +134,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table1', 'table_1')),
                 dcc.Markdown('''
-                    **Center Name:** MCC and Site
+                    **Site:** MCC and Screening Site
                     **All Participants:** Total number of subjects screened
                     **Yes:** Total number of subjects who expressed interest in participating in study
                     **Maybe:** Total number of subjects who said they might participate in study
@@ -335,7 +335,11 @@ def serve_layout():
     ],style=TACC_IFRAME_SIZE)
     return s_layout
 
+def test_layout():
+    return html.Div('test')
+# app.layout = test_layout
 app.layout = serve_layout
+
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------

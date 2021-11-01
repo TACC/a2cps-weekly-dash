@@ -8,6 +8,7 @@ import requests
 import math
 import numpy as np
 import pandas as pd # Dataframe manipulations
+import sqlite3
 import datetime
 from datetime import datetime, timedelta
 
@@ -56,6 +57,28 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
 # DATA LOADING
 # ----------------------------------------------------------------------------
 # Weekly data from from json files stored at TACC
+def get_subjects_data_from_local_file(mcc_list):
+    try:
+        # Read files into json
+        weekly_data = pd.DataFrame()
+        for mcc in mcc_list:
+            try:
+                mcc_file = ''.join(['data/subjects-',str(mcc),'-latest.json'])
+                mcc_json = pd.read_json(mcc_file, orient='index').reset_index()
+                mcc_data['mcc'] = mcc
+                if weekly_data.empty:
+                    weekly_data = mcc_data
+                else:
+                    weekly_data = pd.concat([weekly_data, mcc_data])
+            except:
+                weekly_data = weekly_data
+        if 'index' in weekly_data.columns:
+            weekly_data.rename(columns={"index": "record_id"}, inplace=True)
+        return weekly_data
+    except Exception as e:
+        print(e)
+        return None
+
 def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
     try:
         # Read files into json
@@ -166,6 +189,32 @@ def clean_adverse_events(adverse_events, display_terms_dict_multi):
         print(e)
         return None
 
+def get_screening_sites(ASSETS_PATH, df, id_col):
+    # Get dataframes
+    ids = df.loc[:, [id_col]]
+    screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
+
+    # open sql connection to create new datarframe with record_id paired to screening site
+    conn = sqlite3.connect(':memory:')
+    ids.to_sql('ids', conn, index=False)
+    screening_sites.to_sql('ss', conn, index=False)
+
+    sql_qry = f'''
+    select {id_col}, screening_site
+    from ids
+    join ss on
+    ids.{id_col} between ss.record_id_start and ss.record_id_end
+    '''
+    sites = pd.read_sql_query(sql_qry, conn)
+    conn.close()
+
+    return sites
+
+def add_screening_site(ASSETS_PATH, df, id_col):
+    sites = get_screening_sites(ASSETS_PATH, df, id_col)
+    df = sites.merge(df, how='left', on=id_col)
+
+    return df
 
 # ----------------------------------------------------------------------------
 # Get dataframes and parameters
@@ -194,12 +243,13 @@ def get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, re
     # Clean loaded data
     clean_weekly, consented = clean_weekly_data(weekly, display_terms_dict)
     clean_adverse = clean_adverse_events(adverse_events, display_terms_dict_multi)
+    screening_data = add_screening_site(ASSETS_PATH, clean_weekly, 'record_id')
 
     # Get list of centers to use in the system
     centers_list = clean_weekly.redcap_data_access_group_display.unique()
     centers_df = pd.DataFrame(centers_list, columns = ['redcap_data_access_group_display'])
 
-    return display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, clean_adverse, centers_df
+    return display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df
 
 
 # ----------------------------------------------------------------------------
@@ -237,6 +287,45 @@ def get_table_1(df):
         # Rename and reorder columns for display
         t1_sum = t1_sum.rename(columns = {'redcap_data_access_group_display':'Center Name'})
         cols_display_order = ['Center Name', 'All Participants', 'Yes', 'Maybe', 'No']
+        t1_sum = t1_sum[cols_display_order]
+
+        return t1_sum
+    except Exception as e:
+        print(e)
+
+        return None
+def get_table_1_screening(df):
+    try:
+       # Define needed columns for this table and select subset from main dataframe
+        t1_cols = ['screening_site','participation_interest_display','record_id']
+        t1 = df[t1_cols]
+
+        # drop missing data rows
+        t1 = t1.dropna()
+
+        # group by center and participation interest value and count number of IDs in each group
+        t1 = t1.groupby(by=["screening_site",'participation_interest_display']).count()
+
+        # Reset data frame index to get dataframe in standard form with center, participation interest flag, count
+        t1 = t1.reset_index()
+
+        # Pivot participation interest values into separate columns
+        t1 = t1.pivot(index=['screening_site'], columns='participation_interest_display', values='record_id')
+
+        # Reset Index so center is a column
+        t1 = t1.reset_index()
+
+        # remove index name
+        t1.columns.name = None
+
+        # Create Summary row ('All Sites') and Summary column ('All Participants')
+        t1_sum = t1
+        t1_sum.loc['All Sites']= t1_sum.sum(numeric_only=True, axis=0)
+        t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
+
+        # Rename and reorder columns for display
+        t1_sum = t1_sum.rename(columns = {'screening_site':'Site'})
+        cols_display_order = ['Site', 'All Participants', 'Yes', 'Maybe', 'No']
         t1_sum = t1_sum[cols_display_order]
 
         return t1_sum
@@ -782,10 +871,10 @@ def get_describe_col_subset(df, describe_col, subset_col, round_rows = {2:['mean
 def get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list):
     ''' Load all the data for the page'''
     today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
-    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, clean_adverse, centers_df = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
+    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
 
     ## SCREENING TABLES
-    table1 = get_table_1(clean_weekly)
+    table1 = get_table_1_screening(screening_data)
 
     display_terms_t2a = display_terms_dict_multi['reason_not_interested']
     table2a = get_table_2a(clean_weekly, display_terms_t2a)
@@ -816,7 +905,7 @@ def get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, r
 
     # Currently splitting on MCC values
     split_col = 'MCC'
-    
+
     # SEX
     demo_df, demo_col, display_terms_dict, display_term_key = demo_active, 'Sex', display_terms_dict, 'sex'
     sex = rollup_with_split_col(demo_df, demo_col, display_terms_dict, display_term_key, split_col)
