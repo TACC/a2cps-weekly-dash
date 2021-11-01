@@ -990,10 +990,8 @@ def get_describe_col_subset(df, describe_col, subset_col, round_rows = {2:['mean
 # GET DATA FOR PAGE
 # ----------------------------------------------------------------------------
 
-def get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list):
+def get_page_data(today, start_report, end_report, report_date_msg, report_range_msg,display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status):
     ''' Load all the data for the page'''
-    today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
-    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
 
     ## SCREENING TABLES
     table1 = get_table_1_screening(screening_data)
@@ -1044,4 +1042,4 @@ def get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, r
     age = get_describe_col_subset(demo_active, 'Age', 'MCC')
 
 
-    return r_status, report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age
+    return table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age

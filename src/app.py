@@ -102,7 +102,10 @@ def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = Fals
 # TABS
 # ----------------------------------------------------------------------------
 def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list):
-    r_status, report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
+    today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
+    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
+    table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_page_data(today, start_report, end_report, report_date_msg, report_range_msg,display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status)
+
     tables_names = ("table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
     excel_sheet_names = ("Screened", "Decline_Reasons", "Decline_Comments", "Consent", "Stud_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
     "Adverse_Events", "Adverse_Events_Description", "Gender", "Race", "Ethnicity", "Age")
