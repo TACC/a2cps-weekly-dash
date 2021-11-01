@@ -1,6 +1,6 @@
 # Private data
 .env
-src/data/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
