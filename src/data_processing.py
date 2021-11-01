@@ -104,10 +104,10 @@ def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
                 weekly_data = weekly_data
         if 'index' in weekly_data.columns:
             weekly_data.rename(columns={"index": "record_id"}, inplace=True)
-        return weekly_data
+        return weekly_data, r.status_code
     except Exception as e:
         traceback.print_exc()
-        return None
+        return None, None
 
 def get_consented(weekly_data):
     consented = weekly_data[weekly_data.record_id.notnull()].copy()
@@ -237,7 +237,7 @@ def get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, re
     display_terms, display_terms_dict, display_terms_dict_multi =  load_display_terms(ASSETS_PATH, display_terms_file)
 
     # Load data from API
-    weekly = get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list)
+    weekly, r_status = get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list)
     sweekly = add_screening_site(ASSETS_PATH, weekly, 'record_id')
 
     # Extract the one-to-many data from the adverse effects column nested dictionary
@@ -254,7 +254,7 @@ def get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, re
     centers_list = clean_weekly.redcap_data_access_group_display.unique()
     centers_df = pd.DataFrame(centers_list, columns = ['redcap_data_access_group_display'])
 
-    return display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df
+    return display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status
 
 
 # ----------------------------------------------------------------------------
@@ -993,7 +993,7 @@ def get_describe_col_subset(df, describe_col, subset_col, round_rows = {2:['mean
 def get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list):
     ''' Load all the data for the page'''
     today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
-    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
+    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
 
     ## SCREENING TABLES
     table1 = get_table_1_screening(screening_data)
@@ -1044,4 +1044,4 @@ def get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, r
     age = get_describe_col_subset(demo_active, 'Age', 'MCC')
 
 
-    return report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age
+    return r_status, report_date_msg, report_range_msg, table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age
