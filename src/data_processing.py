@@ -1,4 +1,5 @@
-  # Libraries
+ # Libraries
+import traceback
 # Data
 # File Management
 import os # Operating system library
@@ -29,7 +30,7 @@ def load_display_terms(ASSETS_PATH, display_terms_file):
 
         return display_terms, display_terms_dict, display_terms_dict_multi
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 def get_display_dictionary(display_terms, api_field, api_value, display_col):
@@ -49,7 +50,7 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
         return display_terms_dict
 
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 
@@ -76,7 +77,7 @@ def get_subjects_data_from_local_file(mcc_list):
             weekly_data.rename(columns={"index": "record_id"}, inplace=True)
         return weekly_data
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
@@ -101,7 +102,7 @@ def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
             weekly_data.rename(columns={"index": "record_id"}, inplace=True)
         return weekly_data
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 def get_consented(weekly_data):
@@ -161,13 +162,10 @@ def clean_weekly_data(weekly, display_terms_dict):
         datetime_cols_list = ['date_of_contact','date_and_time','obtain_date','ewdateterm'] #erep_local_dtime also dates, but currently an array
         weekly[datetime_cols_list] = weekly[datetime_cols_list].apply(pd.to_datetime, errors='coerce')
 
-        # Get subset of consented patients, i.e. main_record_id exists
-        consented = weekly[weekly.obtain_date.notnull()].copy()
-
-        return weekly, consented
+        return weekly
 
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None, None
 
 def clean_adverse_events(adverse_events, display_terms_dict_multi):
@@ -186,7 +184,7 @@ def clean_adverse_events(adverse_events, display_terms_dict_multi):
 
         return multi_data
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         return None
 
 def get_screening_sites(ASSETS_PATH, df, id_col):
@@ -236,14 +234,17 @@ def get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, re
 
     # Load data from API
     weekly = get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list)
+    sweekly = add_screening_site(ASSETS_PATH, weekly, 'record_id')
 
     # Extract the one-to-many data from the adverse effects column nested dictionary
     adverse_events = extract_adverse_effects_data(weekly)
 
     # Clean loaded data
-    clean_weekly, consented = clean_weekly_data(weekly, display_terms_dict)
+    clean_weekly = clean_weekly_data(weekly, display_terms_dict)
     clean_adverse = clean_adverse_events(adverse_events, display_terms_dict_multi)
     screening_data = add_screening_site(ASSETS_PATH, clean_weekly, 'record_id')
+    # Get subset of consented patients, i.e. main_record_id exists
+    consented = screening_data[screening_data.obtain_date.notnull()].copy()
 
     # Get list of centers to use in the system
     centers_list = clean_weekly.redcap_data_access_group_display.unique()
@@ -291,7 +292,7 @@ def get_table_1(df):
 
         return t1_sum
     except Exception as e:
-        print(e)
+        traceback.print_exc()
 
         return None
 def get_table_1_screening(df):
@@ -330,7 +331,7 @@ def get_table_1_screening(df):
 
         return t1_sum
     except Exception as e:
-        print(e)
+        traceback.print_exc()
 
         return None
 
@@ -512,6 +513,65 @@ def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
     # Add aggregate sum row
     t3_aggregate.loc['All']= t3_aggregate.sum(numeric_only=True, axis=0)
     t3_aggregate.loc['All','Center Name'] = 'All Sites'
+    t3_aggregate.fillna("", inplace=True)
+
+    return t3, t3_aggregate
+def get_table_3_screening(df,end_report_date = datetime.now(), days_range = 30):
+    t3 = df
+    # Get eligible patients using sp field logic
+#    eligible_cols = ['sp_inclcomply', 'sp_inclage1884' , 'sp_inclsurg','sp_exclarthkneerep','sp_exclinfdxjoint','sp_exclnoreadspkenglish','sp_mricompatscr' ]
+#     eligible = (t3.sp_inclcomply ==1) & (t3.sp_inclage1884 ==1) & (t3.sp_inclsurg ==1) & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0) & (t3.sp_exclnoreadspkenglish ==0) & (t3.sp_mricompatscr ==4)
+# Update logic to reflect addition of back patients at MCC2s who use different columns to assess
+    eligible_short = (t3.sp_inclcomply ==1) & (t3.sp_inclage1884 ==1) & (t3.sp_inclsurg ==1) & (t3.sp_exclnoreadspkenglish ==0) & (t3.sp_mricompatscr ==4)
+    eligible_knee = (t3.mcc == 1) & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0)
+    eligible_back = (t3.mcc == 2) & (t3.sp_exclothmajorsurg ==0) & (t3.sp_exclprevbilthorpro ==0)
+    t3['eligible'] = (eligible_short & eligible_knee) | (eligible_short & eligible_back)
+
+    # Get conset within last days range days
+    within_days_range = ((end_report_date - t3.obtain_date).dt.days) <= days_range
+    t3['within_range'] = within_days_range
+
+    # Aggregate data for table 3
+    # Set the columns to groupby, and the the columns to role up with desired aggregating functions
+    # Note: can supply a list of aggregate functions to one columnm i.e. 'col_name': ['min','max']
+    cols_for_groupby = ["screening_site"]
+    aggregate_columns_dict={'main_record_id':'count',
+                            'obtain_date':'max',
+                             'eligible':'sum',
+                             'ewdateterm':'count',
+                           'within_range':'sum'}
+    cols = cols_for_groupby + list(aggregate_columns_dict.keys())
+    t3_aggregate = t3[cols].groupby(by=cols_for_groupby).agg(aggregate_columns_dict)
+
+    # Reset Index
+    t3_aggregate = t3_aggregate.reset_index()
+
+    # Calculate the number of days since the last consent
+    t3_aggregate['days_since_consent'] = (end_report_date.date() - t3_aggregate['obtain_date'].dt.date).astype(str)
+
+    # Calculate # of ineligible from total - eligible
+    t3_aggregate['ineligible'] = t3_aggregate['main_record_id'] - t3_aggregate['eligible']
+
+
+    # Rename and reorder columns for display
+    consent_range_col_name = 'Consents in last ' + str(days_range) +' Days'
+    rename_dict = {'screening_site':'Site',
+                    'main_record_id':'Consented',
+                    'days_since_consent':'Days Since Last Consent',
+                    'within_range':consent_range_col_name,
+                   'eligible':'Total Eligible',
+                   'ineligible':'Total ineligible',
+                   'ewdateterm': 'Total Rescinded'
+                  }
+    t3_aggregate = t3_aggregate.rename(columns = rename_dict)
+    cols_display_order = ['Site', 'Consented', 'Days Since Last Consent',consent_range_col_name,
+                          'Total Eligible', 'Total ineligible',  'Total Rescinded'
+       ]
+    t3_aggregate = t3_aggregate[cols_display_order]
+
+    # Add aggregate sum row
+    t3_aggregate.loc['All']= t3_aggregate.sum(numeric_only=True, axis=0)
+    t3_aggregate.loc['All','Site'] = 'All Sites'
     t3_aggregate.fillna("", inplace=True)
 
     return t3, t3_aggregate
@@ -941,7 +1001,7 @@ def get_page_data(report_date, ASSETS_PATH, display_terms_file, file_url_root, r
 
     table2b = get_table_2b_screening(screening_data, start_report, end_report)
 
-    table3_data, table3 = get_table_3(consented, today, 30)
+    table3_data, table3 = get_table_3_screening(consented, today, 30)
 
     ## STUDY Status
     table4 = get_table_4(centers_df, consented, today)

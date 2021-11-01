@@ -1,6 +1,8 @@
 # ----------------------------------------------------------------------------
 # PYTHON LIBRARIES
 # ----------------------------------------------------------------------------
+import traceback
+
 # Dash Framework
 import dash
 import dash_core_components as dcc
@@ -21,6 +23,13 @@ from styling import *
 # for export
 import io
 import flask
+
+
+# ----------------------------------------------------------------------------
+# DEBUGGING
+# ----------------------------------------------------------------------------
+
+
 # ----------------------------------------------------------------------------
 # APP Settings
 # ----------------------------------------------------------------------------
@@ -219,7 +228,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table7a', 'table_7a')),
                 dcc.Markdown('''
-                    **Center Name:** MCC and Site
+                    **Site:** MCC and Screening Site
                     **Baseline Patients:** Total number of subjects reaching baseline
                     **# with Deviation:** Total number of subjects with at least one deviation
                     **Total Deviations:** Total of all deviations at this center (a single patient can have more than one)
@@ -311,7 +320,8 @@ def serve_layout():
         section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
         sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
         page_layout = html.Div(id='page_layout')
-    except:
+    except Exception as e:
+        traceback.print_exc()
         page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
 
     s_layout = html.Div([
@@ -385,6 +395,7 @@ def click_excel(n_clicks,store):
         excel_file = None
     return excel_file
 
+# ----------------------------------------------------------------------------
 # RUN APPLICATION
 # ----------------------------------------------------------------------------
 
