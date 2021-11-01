@@ -89,14 +89,13 @@ def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
             try:
                 json_url = '/'.join([file_url_root, report,report_suffix.replace('[mcc]',str(mcc))])
                 r = requests.get(json_url)
-                if r.status_code == 200:
-                    mcc_json = r.json()
-                    mcc_data = pd.DataFrame.from_dict(mcc_json, orient = 'index').reset_index()
-                    mcc_data['mcc'] = mcc
-                    if weekly_data.empty:
-                        weekly_data = mcc_data
-                    else:
-                        weekly_data = pd.concat([weekly_data, mcc_data])
+                mcc_json = r.json()
+                mcc_data = pd.DataFrame.from_dict(mcc_json, orient = 'index').reset_index()
+                mcc_data['mcc'] = mcc
+                if weekly_data.empty:
+                    weekly_data = mcc_data
+                else:
+                    weekly_data = pd.concat([weekly_data, mcc_data])
             except Exception as e:
                 traceback.print_exc()
                 weekly_data = weekly_data
@@ -680,7 +679,6 @@ def get_deviation_records(weekly, adverse_events):
 
     return deviations
 
-
 def get_deviations_by_center(centers, df, deviations, display_terms_dict):
     dev_cols = ['record_id','redcap_data_access_group_display','start_v1_preop']
     baseline = df[df['start_v1_preop']==1][dev_cols]
@@ -777,7 +775,6 @@ def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_ra
     table7b['Deviation Date'] = table7b['Deviation Date'].dt.strftime('%m/%d/%Y')
 
     return table7b
-
 
 def get_adverse_event_records(weekly, adverse_events):
     # Set which columns to select
