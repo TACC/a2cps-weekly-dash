@@ -94,7 +94,8 @@ def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = Fals
                 merge_duplicate_headers=True,
             )
         return new_datatable
-    except:
+    except Exception as e:
+        traceback.print_exc()
         return None
 
 # ----------------------------------------------------------------------------

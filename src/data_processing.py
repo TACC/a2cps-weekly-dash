@@ -71,7 +71,8 @@ def get_subjects_data_from_local_file(mcc_list):
                     weekly_data = mcc_data
                 else:
                     weekly_data = pd.concat([weekly_data, mcc_data])
-            except:
+            except Exception as e:
+                traceback.print_exc()
                 weekly_data = weekly_data
         if 'index' in weekly_data.columns:
             weekly_data.rename(columns={"index": "record_id"}, inplace=True)
@@ -96,7 +97,8 @@ def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
                         weekly_data = mcc_data
                     else:
                         weekly_data = pd.concat([weekly_data, mcc_data])
-            except:
+            except Exception as e:
+                traceback.print_exc()
                 weekly_data = weekly_data
         if 'index' in weekly_data.columns:
             weekly_data.rename(columns={"index": "record_id"}, inplace=True)
