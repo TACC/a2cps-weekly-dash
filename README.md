@@ -6,6 +6,7 @@ This dashboard is intended for use by study personnel and others interested in t
 ## Version History
 | Version   | Date | Description |
 | ------ | ------ | ------ |
+| 0.0.2 | 11/01/2021 | Update dashboard to use Screening sites for Screening tables. |
 | 0.0.1 | 05/18/2021 | Initial dashboard with portions of the data loaded into tables. |
 
 ## Dashboard Description
