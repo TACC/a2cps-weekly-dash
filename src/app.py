@@ -1,6 +1,8 @@
 # ----------------------------------------------------------------------------
 # PYTHON LIBRARIES
 # ----------------------------------------------------------------------------
+import traceback
+
 # Dash Framework
 import dash
 import dash_core_components as dcc
@@ -21,6 +23,13 @@ from styling import *
 # for export
 import io
 import flask
+
+
+# ----------------------------------------------------------------------------
+# DEBUGGING
+# ----------------------------------------------------------------------------
+
+
 # ----------------------------------------------------------------------------
 # APP Settings
 # ----------------------------------------------------------------------------
@@ -52,6 +61,7 @@ mcc_list=[1,2]
 # FUNCTIONS FOR DASH UI COMPONENTS
 # ----------------------------------------------------------------------------
 def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = False):
+    print(key)
     try:
         table_columns = table_dict[key]['columns_list']
         table_data = table_dict[key]['data']
@@ -85,14 +95,22 @@ def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = Fals
                 merge_duplicate_headers=True,
             )
         return new_datatable
-    except:
+    except Exception as e:
+        traceback.print_exc()
         return None
 
 # ----------------------------------------------------------------------------
 # TABS
 # ----------------------------------------------------------------------------
-def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list):
-    page_meta_dict = {}
+
+
+def build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age):
+    tables_names = ("table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
+    excel_sheet_names = ("Screened", "Decline_Reasons", "Decline_Comments", "Consent", "Stud_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
+    "Adverse_Events", "Adverse_Events_Description", "Gender", "Race", "Ethnicity", "Age")
+
+    tables = (table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
+
     tables_dict = {}
 
     try:
@@ -126,7 +144,7 @@ def build_tables_dict(report_date, ASSETS_PATH, display_terms_file, file_url_roo
     except:
         page_meta_dict = {'report_date_msg' : 'report_date_msg', 'report_range_msg':'report_range_msg'}
 
-    return page_meta_dict, tables_dict
+    return tables_dict
 
 def build_content(tables_dict, page_meta_dict):
 
@@ -155,7 +173,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table2a', 'table_2a')),
                 dcc.Markdown('''
-                    **Center Name:** MCC and Site
+                    **Site:** MCC and Screening Site
                     **Total Declined:** Total number of subjects screened
                     **Additional Columns:** Total number of subjects who sited that reason in declining.
                     *Note*: Subjects may report multiple reasons (or no reason) for declining.
@@ -219,7 +237,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table7a', 'table_7a')),
                 dcc.Markdown('''
-                    **Center Name:** MCC and Site
+                    **Site:** MCC and Screening Site
                     **Baseline Patients:** Total number of subjects reaching baseline
                     **# with Deviation:** Total number of subjects with at least one deviation
                     **Total Deviations:** Total of all deviations at this center (a single patient can have more than one)
@@ -306,13 +324,33 @@ def build_page_layout(toggle_view_value, sections_dict):
 
 def serve_layout():
     page_meta_dict, tables_dict, sections_dict = {'report_date_msg':''}, {}, {}
-    try:
-        page_meta_dict, tables_dict = build_tables_dict(datetime.now(), ASSETS_PATH, display_terms_file,file_url_root, report, report_suffix, mcc_list)
-        section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
-        sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
-        page_layout = html.Div(id='page_layout')
-    except:
-        page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
+    report_date = datetime.now()
+    # try:
+    # get data for page
+    print('time parameters')
+    today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
+    page_meta_dict['report_date_msg'] = report_date_msg
+    page_meta_dict['report_range_msg'] = report_range_msg
+    print('get data inputs')
+
+    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
+    page_meta_dict['r_status'] = r_status
+
+    print('GET TABLE DATA')
+    table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg,display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df)
+
+    print('building tables')
+    tables_dict = build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
+
+    print('building content')
+    section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
+
+    print('get sections')
+    sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
+    page_layout = html.Div(id='page_layout')
+    # except Exception as e:
+    #     traceback.print_exc()
+    #     page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
 
     s_layout = html.Div([
         dcc.Store(id='store_meta', data = page_meta_dict),
@@ -335,6 +373,7 @@ def serve_layout():
             html.H5(page_meta_dict['report_date_msg']),
             html.Div(id='download-msg'),
             page_layout,
+            # html.Div(page_meta_dict['r_status'])
         ]
         , style =CONTENT_STYLE)
     ],style=TACC_IFRAME_SIZE)
@@ -385,6 +424,7 @@ def click_excel(n_clicks,store):
         excel_file = None
     return excel_file
 
+# ----------------------------------------------------------------------------
 # RUN APPLICATION
 # ----------------------------------------------------------------------------
 
