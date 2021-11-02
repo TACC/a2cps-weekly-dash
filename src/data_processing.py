@@ -88,6 +88,7 @@ def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
         for mcc in mcc_list:
             try:
                 json_url = '/'.join([file_url_root, report,report_suffix.replace('[mcc]',str(mcc))])
+                print(json_url)
                 r = requests.get(json_url)
                 print(r.status_code)
                 # if r.status_code == 200:
@@ -260,45 +261,6 @@ def get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, re
 # ----------------------------------------------------------------------------
 # Screening Tables
 # ----------------------------------------------------------------------------
-def get_table_1(df):
-    try:
-       # Define needed columns for this table and select subset from main dataframe
-        t1_cols = ['redcap_data_access_group_display','participation_interest_display','record_id']
-        t1 = df[t1_cols]
-
-        # drop missing data rows
-        t1 = t1.dropna()
-
-        # group by center and participation interest value and count number of IDs in each group
-        t1 = t1.groupby(by=["redcap_data_access_group_display",'participation_interest_display']).count()
-
-        # Reset data frame index to get dataframe in standard form with center, participation interest flag, count
-        t1 = t1.reset_index()
-
-        # Pivot participation interest values into separate columns
-        t1 = t1.pivot(index=['redcap_data_access_group_display'], columns='participation_interest_display', values='record_id')
-
-        # Reset Index so center is a column
-        t1 = t1.reset_index()
-
-        # remove index name
-        t1.columns.name = None
-
-        # Create Summary row ('All Sites') and Summary column ('All Participants')
-        t1_sum = t1
-        t1_sum.loc['All Sites']= t1_sum.sum(numeric_only=True, axis=0)
-        t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
-
-        # Rename and reorder columns for display
-        t1_sum = t1_sum.rename(columns = {'redcap_data_access_group_display':'Center Name'})
-        cols_display_order = ['Center Name', 'All Participants', 'Yes', 'Maybe', 'No']
-        t1_sum = t1_sum[cols_display_order]
-
-        return t1_sum
-    except Exception as e:
-        traceback.print_exc()
-
-        return None
 def get_table_1_screening(df):
     try:
        # Define needed columns for this table and select subset from main dataframe
@@ -339,53 +301,6 @@ def get_table_1_screening(df):
 
         return None
 
-def get_table_2a(df, display_terms_t2a):
-    # Get decline columns from dataframe where participant was not interested (participation_interest == 0)
-    t2_cols = ['main_record_id','redcap_data_access_group_display','reason_not_interested', 'ptinterest_comment'] # cols to select
-    t2 = df[df.participation_interest == 0][t2_cols]
-
-    # group data by center and count the # of main_record_ids
-    t2_site_count = pd.DataFrame(t2.groupby('redcap_data_access_group_display')['main_record_id'].size())
-
-    # rename aggregate column
-    t2_site_count.columns = ['Total Declined']
-
-    # reset table index to turn center from index --> column
-    t2_site_count = t2_site_count.reset_index()
-
-    # The reason_not_interested column is one-to-many so can contain a comma separated string of multiple values.
-    # Use the explode function to give each value its own row in the dataframe and drop rows with missing values
-    t2_reasons = t2.assign(reason_not_interested=t2['reason_not_interested'].str.split('|')).explode('reason_not_interested')
-    t2_reasons = t2_reasons.fillna(-1)
-
-    # Convert reasons column to numeric and merge with display terms dictionary
-    t2_reasons = t2_reasons.apply(pd.to_numeric, errors='ignore')
-
-    # Group the data by center and count number of entries by reason value
-    t2_reasons = pd.DataFrame(t2_reasons.groupby(['redcap_data_access_group_display','reason_not_interested']).size())
-    t2_reasons.columns=['count']
-    t2_reasons = t2_reasons.reset_index()
-
-    # pivot table so the reasons are converted from values in a column to individual columns
-    t2_reasons = t2_reasons.pivot(index=['redcap_data_access_group_display'],columns=['reason_not_interested'], values = 'count')
-
-    # Create dictionary from display terms dict to rename columns from int values
-    reason_display_dict = display_terms_t2a.set_index('reason_not_interested').to_dict()['reason_not_interested_display']
-
-    # Rename according to dictionary
-    t2_reasons = t2_reasons.rename(columns = reason_display_dict)
-
-    # Merge the reasons with the data on the total count of declines by center
-    # Note: the reasons may add up to < than total declined because the data entry allowed for NA. also possible more because
-    # patients could select more than one reason.
-    t2_site_count_detailed = t2_site_count.merge(t2_reasons, on='redcap_data_access_group_display')
-    t2_site_count_detailed = t2_site_count_detailed.rename(columns = {'redcap_data_access_group_display':'Center Name'})
-
-    # Fill missing data with 0 and sum across all sites
-    t2_site_count_detailed = t2_site_count_detailed.fillna(0)
-    t2_site_count_detailed.loc['All Sites']= t2_site_count_detailed.sum(numeric_only=True, axis=0)
-
-    return t2_site_count_detailed
 def get_table_2a_screening(df, display_terms_t2a):
     # Get decline columns from dataframe where participant was not interested (participation_interest == 0)
     t2_cols = ['record_id','screening_site','reason_not_interested', 'ptinterest_comment'] # cols to select
@@ -434,19 +349,6 @@ def get_table_2a_screening(df, display_terms_t2a):
 
     return t2_site_count_detailed
 
-def get_table_2b(df, start_report, end_report):
-    # Each decline includes a comment field - show these for the period of the report (previous 7 days)
-    decline_comments = df[df.participation_interest == 0][['redcap_data_access_group_display','date_of_contact','ptinterest_comment']].dropna()
-
-    # Show Comments during reporting period
-    decline_comments = decline_comments[(decline_comments.date_of_contact > start_report) & (decline_comments.date_of_contact <= end_report)]
-
-    # Rename and reorder columns for display
-    decline_comments = decline_comments.rename(columns = {'redcap_data_access_group_display':'Center Name','ptinterest_comment':'Reason' })
-    cols_display_order = ['Center Name', 'Reason']
-    decline_comments = decline_comments[cols_display_order]
-
-    return decline_comments
 def get_table_2b_screening(df, start_report, end_report):
     # Each decline includes a comment field - show these for the period of the report (previous 7 days)
     decline_comments = df[df.participation_interest == 0][['screening_site','date_of_contact','ptinterest_comment']].dropna()
@@ -461,65 +363,6 @@ def get_table_2b_screening(df, start_report, end_report):
 
     return decline_comments
 
-def get_table_3(df,end_report_date = datetime.now(), days_range = 30):
-    t3 = df
-    # Get eligible patients using sp field logic
-#    eligible_cols = ['sp_inclcomply', 'sp_inclage1884' , 'sp_inclsurg','sp_exclarthkneerep','sp_exclinfdxjoint','sp_exclnoreadspkenglish','sp_mricompatscr' ]
-#     eligible = (t3.sp_inclcomply ==1) & (t3.sp_inclage1884 ==1) & (t3.sp_inclsurg ==1) & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0) & (t3.sp_exclnoreadspkenglish ==0) & (t3.sp_mricompatscr ==4)
-# Update logic to reflect addition of back patients at MCC2s who use different columns to assess
-    eligible_short = (t3.sp_inclcomply ==1) & (t3.sp_inclage1884 ==1) & (t3.sp_inclsurg ==1) & (t3.sp_exclnoreadspkenglish ==0) & (t3.sp_mricompatscr ==4)
-    eligible_knee = (t3.mcc == 1) & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0)
-    eligible_back = (t3.mcc == 2) & (t3.sp_exclothmajorsurg ==0) & (t3.sp_exclprevbilthorpro ==0)
-    t3['eligible'] = (eligible_short & eligible_knee) | (eligible_short & eligible_back)
-
-    # Get conset within last days range days
-    within_days_range = ((end_report_date - t3.obtain_date).dt.days) <= days_range
-    t3['within_range'] = within_days_range
-
-    # Aggregate data for table 3
-    # Set the columns to groupby, and the the columns to role up with desired aggregating functions
-    # Note: can supply a list of aggregate functions to one columnm i.e. 'col_name': ['min','max']
-    cols_for_groupby = ["redcap_data_access_group_display"]
-    aggregate_columns_dict={'main_record_id':'count',
-                            'obtain_date':'max',
-                             'eligible':'sum',
-                             'ewdateterm':'count',
-                           'within_range':'sum'}
-    cols = cols_for_groupby + list(aggregate_columns_dict.keys())
-    t3_aggregate = t3[cols].groupby(by=cols_for_groupby).agg(aggregate_columns_dict)
-
-    # Reset Index
-    t3_aggregate = t3_aggregate.reset_index()
-
-    # Calculate the number of days since the last consent
-    t3_aggregate['days_since_consent'] = (end_report_date.date() - t3_aggregate['obtain_date'].dt.date).astype(str)
-
-    # Calculate # of ineligible from total - eligible
-    t3_aggregate['ineligible'] = t3_aggregate['main_record_id'] - t3_aggregate['eligible']
-
-
-    # Rename and reorder columns for display
-    consent_range_col_name = 'Consents in last ' + str(days_range) +' Days'
-    rename_dict = {'redcap_data_access_group_display':'Center Name',
-                    'main_record_id':'Consented',
-                    'days_since_consent':'Days Since Last Consent',
-                    'within_range':consent_range_col_name,
-                   'eligible':'Total Eligible',
-                   'ineligible':'Total ineligible',
-                   'ewdateterm': 'Total Rescinded'
-                  }
-    t3_aggregate = t3_aggregate.rename(columns = rename_dict)
-    cols_display_order = ['Center Name', 'Consented', 'Days Since Last Consent',consent_range_col_name,
-                          'Total Eligible', 'Total ineligible',  'Total Rescinded'
-       ]
-    t3_aggregate = t3_aggregate[cols_display_order]
-
-    # Add aggregate sum row
-    t3_aggregate.loc['All']= t3_aggregate.sum(numeric_only=True, axis=0)
-    t3_aggregate.loc['All','Center Name'] = 'All Sites'
-    t3_aggregate.fillna("", inplace=True)
-
-    return t3, t3_aggregate
 def get_table_3_screening(df,end_report_date = datetime.now(), days_range = 30):
     t3 = df
     # Get eligible patients using sp field logic
