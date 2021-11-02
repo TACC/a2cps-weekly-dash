@@ -291,8 +291,8 @@ def get_table_1_screening(df):
         t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
 
         # Rename and reorder columns for display
-        t1_sum = t1_sum.rename(columns = {'screening_site':'Site'})
-        cols_display_order = ['Site', 'All Participants', 'Yes', 'Maybe', 'No']
+        t1_sum = t1_sum.rename(columns = {'screening_site':'Screening Site'})
+        cols_display_order = ['Screening Site', 'All Participants', 'Yes', 'Maybe', 'No']
         t1_sum = t1_sum[cols_display_order]
 
         return t1_sum
@@ -341,7 +341,7 @@ def get_table_2a_screening(df, display_terms_t2a):
     # Note: the reasons may add up to < than total declined because the data entry allowed for NA. also possible more because
     # patients could select more than one reason.
     t2_site_count_detailed = t2_site_count.merge(t2_reasons, on='screening_site')
-    t2_site_count_detailed = t2_site_count_detailed.rename(columns = {'screening_site':'Site'})
+    t2_site_count_detailed = t2_site_count_detailed.rename(columns = {'screening_site':'Screening Site'})
 
     # Fill missing data with 0 and sum across all sites
     t2_site_count_detailed = t2_site_count_detailed.fillna(0)
@@ -357,8 +357,8 @@ def get_table_2b_screening(df, start_report, end_report):
     decline_comments = decline_comments[(decline_comments.date_of_contact > start_report) & (decline_comments.date_of_contact <= end_report)]
 
     # Rename and reorder columns for display
-    decline_comments = decline_comments.rename(columns = {'screening_site':'Site','ptinterest_comment':'Reason' })
-    cols_display_order = ['Site', 'Reason']
+    decline_comments = decline_comments.rename(columns = {'screening_site':'Screening Site','ptinterest_comment':'Reason' })
+    cols_display_order = ['Screening Site', 'Reason']
     decline_comments = decline_comments[cols_display_order]
 
     return decline_comments
@@ -402,7 +402,7 @@ def get_table_3_screening(df,end_report_date = datetime.now(), days_range = 30):
 
     # Rename and reorder columns for display
     consent_range_col_name = 'Consents in last ' + str(days_range) +' Days'
-    rename_dict = {'screening_site':'Site',
+    rename_dict = {'screening_site':'Screening Site',
                     'main_record_id':'Consented',
                     'days_since_consent':'Days Since Last Consent',
                     'within_range':consent_range_col_name,
@@ -411,14 +411,14 @@ def get_table_3_screening(df,end_report_date = datetime.now(), days_range = 30):
                    'ewdateterm': 'Total Rescinded'
                   }
     t3_aggregate = t3_aggregate.rename(columns = rename_dict)
-    cols_display_order = ['Site', 'Consented', 'Days Since Last Consent',consent_range_col_name,
+    cols_display_order = ['Screening Site', 'Consented', 'Days Since Last Consent',consent_range_col_name,
                           'Total Eligible', 'Total ineligible',  'Total Rescinded'
        ]
     t3_aggregate = t3_aggregate[cols_display_order]
 
     # Add aggregate sum row
     t3_aggregate.loc['All']= t3_aggregate.sum(numeric_only=True, axis=0)
-    t3_aggregate.loc['All','Site'] = 'All Sites'
+    t3_aggregate.loc['All','Screening Site'] = 'All Sites'
     t3_aggregate.fillna("", inplace=True)
 
     return t3, t3_aggregate

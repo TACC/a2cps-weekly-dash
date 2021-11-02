@@ -142,7 +142,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table1', 'table_1')),
                 dcc.Markdown('''
-                    **Site:** MCC and Screening Site
+                    **Screening Site:** MCC and Screening Site
                     **All Participants:** Total number of subjects screened
                     **Yes:** Total number of subjects who expressed interest in participating in study
                     **Maybe:** Total number of subjects who said they might participate in study
@@ -158,7 +158,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table2a', 'table_2a')),
                 dcc.Markdown('''
-                    **Site:** MCC and Screening Site
+                    **Screening Site:** MCC and Screening Site
                     **Total Declined:** Total number of subjects screened
                     **Additional Columns:** Total number of subjects who sited that reason in declining.
                     *Note*: Subjects may report multiple reasons (or no reason) for declining.
@@ -222,7 +222,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table7a', 'table_7a')),
                 dcc.Markdown('''
-                    **Site:** MCC and Screening Site
+                    **Screening Site:** MCC and Screening Site
                     **Baseline Patients:** Total number of subjects reaching baseline
                     **# with Deviation:** Total number of subjects with at least one deviation
                     **Total Deviations:** Total of all deviations at this center (a single patient can have more than one)
