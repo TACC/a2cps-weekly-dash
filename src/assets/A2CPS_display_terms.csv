@@ -2,6 +2,9 @@
 redcap_data_access_group,rush_university_me,0,MCC1: Rush,MCC1: Rush,0
 redcap_data_access_group,northshore,0,MCC1: NorthShore,MCC1: NorthShore,0
 redcap_data_access_group,uchicago,0,MCC1: UChicago,MCC1: UChicago,0
+redcap_data_access_group,university_of_mich,0,MCC2: UMichigan,MCC2: UMichigan,0
+redcap_data_access_group,wayne_state,0,MCC2: Wayne State,MCC2: Wayne State,0
+redcap_data_access_group,spectrum_health,0,MCC2: Spectrum Health,MCC2: Spectrum Health,0
 participation_interest,0,0,No,No,0
 participation_interest,1,0,Maybe,Maybe,0
 participation_interest,2,0,Yes,Yes,0
