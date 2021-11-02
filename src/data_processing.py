@@ -163,7 +163,7 @@ def clean_weekly_data(weekly, display_terms_dict):
                 weekly = weekly.merge(display_terms, how='left', on=i)
 
         # convert date columns from object --> datetime datatypes as appropriate
-        datetime_cols_list = ['date_of_contact','date_and_time','obtain_date','ewdateterm'] #erep_local_dtime also dates, but currently an array
+        datetime_cols_list = ['date_of_contact','date_and_time','obtain_date','ewdateterm','sp_surg_date','sp_v1_preop_date','sp_v2_6wk_date','sp_v3_3mo_date'] #erep_local_dtime also dates, but currently an array
         weekly[datetime_cols_list] = weekly[datetime_cols_list].apply(pd.to_datetime, errors='coerce')
 
         return weekly
@@ -636,27 +636,29 @@ def get_table_4(centers, consented_patients, compare_date = datetime.now()):
 def get_tables_5_6(df):
     # Get patients who rescinded consent, i.e. have a value in the 'ewdateterm' column
     rescinded = df.dropna(subset=['ewdateterm'])
-    rescinded_cols = ['redcap_data_access_group_display','main_record_id','obtain_date','ewdateterm','ewprimaryreason_display','ewcomments','sp_surg_date']
+    rescinded_cols = ['redcap_data_access_group_display','main_record_id','obtain_date','sp_surg_date','ewdateterm','ewprimaryreason_display','ewcomments']
     rescinded = rescinded[rescinded_cols]
 
     # Display main record id as int
     rescinded.main_record_id = rescinded.main_record_id.astype('int32')
 
     # convert datetime columns to just date
-    for date_col in ['obtain_date','ewdateterm']:
+    for date_col in ['obtain_date','ewdateterm','sp_surg_date']:
         rescinded[date_col] = rescinded[date_col].dt.date
 
     # TO DO: need to convert reasons to text reasons
     # Rename columns to user friendly versions
-    rescinded.columns =['Center Name', 'Record ID', 'Consent Date',
-       'Early Termination Date', 'Reason', 'Comments', 'Surgery Date']
+    rescinded.columns =['Center Name', 'Record ID', 'Consent Date','Surgery Date',
+       'Early Termination Date', 'Reason', 'Comments']
 
-    # Split dataset into leaving before pr after surgery
-    rescinded_pre_surgery = rescinded[rescinded['Surgery Date'].isna()].drop(['Surgery Date'],axis=1)
+    # rescinded['pre-surgery'] = np.where(rescinded['Early Termination Date'] < rescinded['Surgery Date'], 'Active', 'Inactive')
+    rescinded['pre-surgery'] = np.where(rescinded['Surgery Date'].isna(), True, (np.where(rescinded['Early Termination Date'] < rescinded['Surgery Date'], True, False)))
+
+    rescinded_pre_surgery = rescinded[rescinded['pre-surgery']].drop(['Surgery Date','pre-surgery'],axis=1)
     if len(rescinded_pre_surgery) == 0:
             rescinded_pre_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
 
-    rescinded_post_surgery = rescinded.dropna(subset=['Surgery Date'])
+    rescinded_post_surgery = rescinded[~rescinded['pre-surgery']].drop(['pre-surgery'],axis=1)
     if len(rescinded_post_surgery) == 0:
             rescinded_post_surgery = pd.DataFrame(columns=['No Patients meet these criteria'])
 
@@ -990,9 +992,8 @@ def get_describe_col_subset(df, describe_col, subset_col, round_rows = {2:['mean
 # GET DATA FOR PAGE
 # ----------------------------------------------------------------------------
 
-def get_page_data(today, start_report, end_report, report_date_msg, report_range_msg,display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status):
+def get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df):
     ''' Load all the data for the page'''
-
     ## SCREENING TABLES
     table1 = get_table_1_screening(screening_data)
 
