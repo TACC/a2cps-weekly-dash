@@ -52,7 +52,7 @@ display_terms_file = 'A2CPS_display_terms.csv'
 
 # Directions for locating file at TACC
 file_url_root ='https://api.a2cps.org/files/v2/download/public/system/a2cps.storage.community/reports'
-report = 'subjects_fake'
+report = 'subjects'
 report_suffix = report + '-[mcc]-latest.json'
 mcc_list=[1,2]
 
