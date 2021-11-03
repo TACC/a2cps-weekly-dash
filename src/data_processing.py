@@ -116,8 +116,9 @@ def get_consented(weekly_data):
 
 # Extract data with multiple values (stored as 'adverse effects' column)
 def extract_adverse_effects_data(weekly_data):
+    index_cols = ['record_id','main_record_id', 'mcc']
     # reset index using index_cols
-    weekly_data = weekly_data.set_index(['record_id', 'mcc'])
+    weekly_data = weekly_data.set_index(index_cols)
     # Extract multi data values
     multi_df = weekly_data[['adverse_effects']].dropna()
     # Convert from data frame back to dict
@@ -132,12 +133,10 @@ def extract_adverse_effects_data(weekly_data):
     # Replace empty strings with NaN
     multi = multi.replace(r'^\s*$', np.nan, regex=True)
     multi = multi.reset_index()
-    multi[['record_id', 'mcc']] = pd.DataFrame(multi['level_0'].tolist(), index=multi.index)
+    multi[index_cols] = pd.DataFrame(multi['level_0'].tolist(), index=multi.index)
     multi['instance'] = multi['level_1']
     multi.drop(['level_0', 'level_1'], axis=1, inplace=True)
-#     multi.set_index(['record_id','instance','mcc'], inplace=True)
     return multi
-
 
 # ----------------------------------------------------------------------------
 # DATA CLEANING
@@ -507,15 +506,13 @@ def get_tables_5_6(df):
 
     return rescinded_pre_surgery, rescinded_post_surgery
 
-# ----------------------------------------------------------------------------
-# Deviation & Adverse Event Tables
-# ----------------------------------------------------------------------------
+
 # ----------------------------------------------------------------------------
 # Deviation & Adverse Event Tables
 # ----------------------------------------------------------------------------
 def get_deviation_records(weekly, adverse_events):
     # Set which columns to select
-    deviations_cols = ['record_id', 'mcc', 'instance','erep_local_dtime',
+    deviations_cols = ['record_id','main_record_id', 'mcc', 'instance','erep_local_dtime',
            'erep_protdev_type','erep_protdev_type_display','erep_protdev_desc',
            'erep_protdev_caplan']
 
@@ -523,22 +520,23 @@ def get_deviation_records(weekly, adverse_events):
     deviations = adverse_events[adverse_events.erep_protdev_type.notnull()][deviations_cols]
 
     # Merge deviations with center info
-    deviations = deviations.merge(weekly[['redcap_data_access_group','redcap_data_access_group_display','record_id','mcc','start_v1_preop']], how='left', on = ['record_id','mcc'])
+    deviations = deviations.merge(weekly[['redcap_data_access_group','redcap_data_access_group_display','main_record_id','mcc','start_v1_preop']], how='left', on = ['main_record_id','mcc'])
 
     return deviations
 
+
 def get_deviations_by_center(centers, df, deviations, display_terms_dict):
-    dev_cols = ['record_id','redcap_data_access_group_display','start_v1_preop']
+    dev_cols = ['main_record_id','redcap_data_access_group_display','start_v1_preop']
     baseline = df[df['start_v1_preop']==1][dev_cols]
     baseline = baseline.reset_index()
 
     # Count consented patients who have had baseline visits
-    centers_baseline = baseline[['redcap_data_access_group_display','record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='baseline')
+    centers_baseline = baseline[['redcap_data_access_group_display','main_record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='baseline')
 
     # Count patients who have an associated deviation
-    records_with_deviation = deviations.record_id.unique()
-    baseline_with_dev = baseline[baseline.record_id.isin(records_with_deviation)]
-    centers_baseline_dev = baseline_with_dev[['redcap_data_access_group_display','record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='patients_with_deviation')
+    records_with_deviation = deviations.main_record_id.unique()
+    baseline_with_dev = baseline[baseline.main_record_id.isin(records_with_deviation)]
+    centers_baseline_dev = baseline_with_dev[['redcap_data_access_group_display','main_record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='patients_with_deviation')
 
     # Add count of all deviations for a given center
     center_count = pd.DataFrame(deviations.value_counts(subset=['redcap_data_access_group_display'])).reset_index()
@@ -546,7 +544,7 @@ def get_deviations_by_center(centers, df, deviations, display_terms_dict):
 
     # Get Deviation Pivot by center
     centers_dev = centers.merge(display_terms_dict['erep_protdev_type'], how='cross')
-    dev_by_center = deviations[['record_id','erep_protdev_type_display', 'instance','redcap_data_access_group_display']]
+    dev_by_center = deviations[['main_record_id','erep_protdev_type_display', 'instance','redcap_data_access_group_display']]
     dev_by_center = dev_by_center.groupby(by=['redcap_data_access_group_display','erep_protdev_type_display'],as_index=False).size()
     centers_dev = centers_dev.merge(dev_by_center, how='outer', on=['redcap_data_access_group_display','erep_protdev_type_display']).fillna(0)
     dev_by_center_pivot =  pd.pivot_table(centers_dev, index=["redcap_data_access_group_display"], columns=["erep_protdev_type_display"], values=["size"])
@@ -608,10 +606,10 @@ def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_ra
     table7b = deviations[deviations['within_range']]
 
     # Sort by most recent, then record_id, then instance
-    table7b = table7b.sort_values(['erep_local_dtime', 'record_id', 'erep_protdev_type'], ascending=[False, True, True])
+    table7b = table7b.sort_values(['erep_local_dtime', 'main_record_id', 'erep_protdev_type'], ascending=[False, True, True])
 
     #select columns for display and rename
-    table7b_cols = ['redcap_data_access_group_display','record_id', 'erep_local_dtime', 'erep_protdev_type_display',
+    table7b_cols = ['redcap_data_access_group_display','main_record_id', 'erep_local_dtime', 'erep_protdev_type_display',
        'erep_protdev_desc', 'erep_protdev_caplan']
     table7b_cols_new_names = ['Center Name','PID', 'Deviation Date', 'Deviation',
        'Description', 'Corrective Action']
@@ -624,10 +622,11 @@ def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_ra
 
     return table7b
 
+
 def get_adverse_event_records(weekly, adverse_events):
     # Set which columns to select
     adverse_event_flag_cols = ['erep_ae_yn'] # must = 1
-    adverse_event_cols = ['record_id', 'mcc', 'instance','erep_ae_yn','erep_ae_relation', 'erep_ae_severity', 'erep_ae_serious',
+    adverse_event_cols = ['main_record_id', 'mcc', 'instance','erep_ae_yn','erep_ae_relation', 'erep_ae_severity', 'erep_ae_serious',
             'erep_onset_date', 'erep_ae_desc', 'erep_action_taken', 'erep_outcome','erep_ae_yn_display',
        'erep_ae_severity_display', 'erep_ae_relation_display',
        'erep_ae_serious_display']
@@ -636,23 +635,23 @@ def get_adverse_event_records(weekly, adverse_events):
     ae = adverse_events[adverse_events.erep_ae_yn==1][adverse_event_cols]
 
     # Merge adverse events with center info
-    ae = ae.merge(weekly[['redcap_data_access_group','redcap_data_access_group_display','record_id','mcc','sp_surg_date']], how='left', on = ['record_id','mcc'])
+    ae = ae.merge(weekly[['redcap_data_access_group','redcap_data_access_group_display','main_record_id','mcc','sp_surg_date']], how='left', on = ['main_record_id','mcc'])
 
     return ae
 
 def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapping):
     # Select subset of patients who have had baseline visits (start_v1_preop not null), using record_id as unique identifier
-    baseline_cols = ['record_id','redcap_data_access_group_display','start_v1_preop']
+    baseline_cols = ['main_record_id','redcap_data_access_group_display','start_v1_preop']
     baseline = df[df['start_v1_preop']==1][baseline_cols]
     baseline = baseline.reset_index()
 
     # Count consented patients who have had baseline visits
-    centers_baseline = baseline[['redcap_data_access_group_display','record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='patients_baseline')
+    centers_baseline = baseline[['redcap_data_access_group_display','main_record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='patients_baseline')
 
     # Count patients who have an adverse events
-    records_with_adverse_events = adverse_events.record_id.unique()
-    baseline_with_ae = baseline[baseline.record_id.isin(records_with_adverse_events)]
-    centers_baseline_ae = baseline_with_ae[['redcap_data_access_group_display','record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='patients_with_ae')
+    records_with_adverse_events = adverse_events.main_record_id.unique()
+    baseline_with_ae = baseline[baseline.main_record_id.isin(records_with_adverse_events)]
+    centers_baseline_ae = baseline_with_ae[['redcap_data_access_group_display','main_record_id']].groupby(['redcap_data_access_group_display']).size().reset_index(name='patients_with_ae')
 
     # Add count of all adverse events for a given center
     center_count_ae = pd.DataFrame(adverse_events.value_counts(subset=['redcap_data_access_group_display'])).reset_index()
@@ -669,7 +668,7 @@ def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapp
     for ae_field in ae_api_fields:
         ae_field_display = ae_field +'_display'
         centers_ae_field = centers.merge(display_terms_mapping[ae_field], how='cross')
-        ae_by_center = adverse_events[['record_id',ae_field_display, 'instance','redcap_data_access_group_display']]
+        ae_by_center = adverse_events[['main_record_id',ae_field_display, 'instance','redcap_data_access_group_display']]
         ae_by_center = ae_by_center.groupby(by=['redcap_data_access_group_display',ae_field_display],as_index=False).size()
         centers_ae_field = centers_ae_field.merge(ae_by_center, how='outer', on=['redcap_data_access_group_display',ae_field_display]).fillna(0)
         centers_ae_field = centers_ae_field.drop(ae_field, axis=1)
@@ -714,7 +713,7 @@ def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapp
 
 def get_table_8b(event_records, end_report, report_days = 30):
     table8b_cols_dict = {'redcap_data_access_group_display':'Center',
-                    'record_id':'PID',
+                    'main_record_id':'PID',
                     'erep_onset_date':'AE Date',
                          'sp_surg_date': 'Surgery Date',
                    'erep_ae_severity_display':'Severity',
@@ -747,7 +746,6 @@ def get_table_8b(event_records, end_report, report_days = 30):
 
 
     return table8b
-
 # ----------------------------------------------------------------------------
 # Demographics Tables
 # ----------------------------------------------------------------------------

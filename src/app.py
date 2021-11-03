@@ -358,8 +358,7 @@ def serve_layout():
             html.H5(page_meta_dict['report_date_msg']),
             html.Div(id='download-msg'),
             page_layout,
-            html.Div(page_meta_dict['r_status'])
-            # Just gonna add a meaningless comment to see if it goes through
+            # html.Div(page_meta_dict['r_status'])
         ]
         , style =CONTENT_STYLE)
     ],style=TACC_IFRAME_SIZE)
