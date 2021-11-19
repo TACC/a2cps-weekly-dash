@@ -61,7 +61,6 @@ mcc_list=[1,2]
 # FUNCTIONS FOR DASH UI COMPONENTS
 # ----------------------------------------------------------------------------
 def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = False):
-    print(key)
     try:
         table_columns = table_dict[key]['columns_list']
         table_data = table_dict[key]['data']
@@ -312,25 +311,25 @@ def serve_layout():
     report_date = datetime.now()
     # try:
     # get data for page
-    print('time parameters')
+    # print('time parameters')
     today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
     page_meta_dict['report_date_msg'] = report_date_msg
     page_meta_dict['report_range_msg'] = report_range_msg
-    print('get data inputs')
+    # print('get data inputs')
 
     display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
     page_meta_dict['r_status'] = r_status
 
-    print('GET TABLE DATA')
+    # print('GET TABLE DATA')
     table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg,display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df)
 
-    print('building tables')
+    # print('building tables')
     tables_dict = build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
-    print('building content')
+    # print('building content')
     section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
 
-    print('get sections')
+    # print('get sections')
     sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
     page_layout = html.Div(id='page_layout')
     # except Exception as e:
