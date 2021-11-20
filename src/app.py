@@ -111,22 +111,30 @@ def build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, 
     tables = (table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
     tables_dict = {}
+
     for i in range(0,len(tables_names)):
         table_name = tables_names[i]
         excel_sheet_name = excel_sheet_names[i]
         data_source = tables[i]
+        columns_list, datatable_data = datatable_settings_multiindex(data_source)
 
-        if(data_source.columns.nlevels == 2):
-            columns_list = []
-            for i in data_source.columns:
-                columns_list.append({"name": [i[0],i[1]], "id": i[1]})
-            data_source.columns = data_source.columns.droplevel()
-        else:
-            columns_list = [{"name": i, "id": i} for i in data_source.columns]
+        # if(data_source.columns.nlevels == 2):
+        #     columns_list = []
+        #     for i in data_source.columns:
+        #         col_id = i[0] + ':' + i[1]
+        #         columns_list.append({"name": [i[0],i[1]], "id": col_id})
+        #     data_source.columns = data_source.columns.droplevel()
+        # else:
+        #     columns_list = [{"name": i, "id": i} for i in data_source.columns]
+
+
 
         tables_dict[table_name] = {'excel_sheet_name': excel_sheet_name,
                                     'columns_list': columns_list,
-                                    'data': data_source.to_dict('records')  }
+                                    'data': datatable_data
+                                    # 'data': data_source.to_dict('records')
+                                    }
+
 
     return tables_dict
 
