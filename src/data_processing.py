@@ -936,7 +936,10 @@ def get_tables(today, start_report, end_report, report_date_msg, report_range_ms
     ethnicity = rollup_with_split_col(demo_df, demo_col, display_terms_dict, display_term_key, split_col)
 
     # AGE
-    age = get_describe_col_subset(demo_active, 'Age', 'MCC')
+    # Drop na
+    age_df = demo_active.copy()
+    age_df["Age"] = pd.to_numeric(age_df["Age"], errors='coerce') # handle records that have no age value anywhere
+    age = get_describe_col_subset(age_df, 'Age', 'MCC')
 
 
     return table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age
