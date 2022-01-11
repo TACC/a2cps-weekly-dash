@@ -258,7 +258,7 @@ def get_screening_sites(ASSETS_PATH, df, id_col):
 def add_screening_site(ASSETS_PATH, df, id_col):
     sites = get_screening_sites(ASSETS_PATH, df, id_col)
     df = sites.merge(df, how='left', on=id_col)
-
+    print(len(df))
     return df
 
 # ----------------------------------------------------------------------------

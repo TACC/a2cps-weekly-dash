@@ -372,7 +372,13 @@ def serve_layout():
     return s_layout
 
 def test_layout():
-    return html.Div('test')
+    # Load display dictionaries to turn numeric values into display values
+    display_terms, display_terms_dict, display_terms_dict_multi =  load_display_terms(ASSETS_PATH, display_terms_file)
+
+    # Load data from API
+    weekly, r_status = get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list)
+    return html.Div(r_status)
+
 # app.layout = test_layout
 app.layout = serve_layout
 
