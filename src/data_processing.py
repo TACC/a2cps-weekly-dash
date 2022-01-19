@@ -13,6 +13,8 @@ import sqlite3
 import datetime
 from datetime import datetime, timedelta
 
+# import local modules
+from config_settings import *
 
 # ----------------------------------------------------------------------------
 # HELPER FUNCTIONS
@@ -33,6 +35,14 @@ def create_multiindex(df, split_char):
     multi_index = pd.MultiIndex.from_tuples(multi_cols)
     df.columns = multi_index
     return df
+
+def convert_to_multindex(df, delimiter = ': '):
+    cols = list(df.columns)
+    cols_with_delimiter = [c for c in cols if delimiter in c]
+    df_mi = df[cols_with_delimiter].copy()
+    df_mi.columns = [tuple(x) for x in df_mi.columns.str.split(delimiter)]
+    df_mi.columns = pd.MultiIndex.from_tuples(df_mi.columns)
+    return df_mi
 
 def datatable_settings_multiindex(df, flatten_char = '_'):
     ''' Plotly dash datatables do not natively handle multiindex dataframes. This function takes a multiindex column set
@@ -107,6 +117,7 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
 def get_subjects_data_from_local_file(mcc_list):
     try:
         # Read files into json
+        r_status = 'local_file'
         weekly_data = pd.DataFrame()
         for mcc in mcc_list:
             try:
@@ -122,10 +133,10 @@ def get_subjects_data_from_local_file(mcc_list):
                 weekly_data = weekly_data
         if 'index' in weekly_data.columns:
             weekly_data.rename(columns={"index": "record_id"}, inplace=True)
-        return weekly_data
+        return weekly_data, r_status
     except Exception as e:
         traceback.print_exc()
-        return None
+        return None, None
 
 def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
     try:
@@ -146,6 +157,9 @@ def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
                         weekly_data = pd.concat([weekly_data, mcc_data])
                 else:
                     print(r.status_code)
+                    # Remove these 2 lines if you don't want to use local files
+                    # weekly_data, r_status = get_subjects_data_from_local_file(mcc_list)
+                    # return weekly_data, r_status
             except Exception as e:
                 traceback.print_exc()
                 weekly_data = weekly_data
@@ -190,8 +204,9 @@ def clean_weekly_data(weekly, display_terms_dict):
         weekly = weekly.replace('N/A', np.nan)
 
         # Handle 1-many dem_race, take multi-select values and convert to 8
-        weekly['dem_race_original'] = weekly['dem_race']
-        weekly.loc[(weekly.dem_race.str.contains('|', regex=False, na=False)),'dem_race']='8'
+        if not np.issubdtype(weekly['dem_race'].dtype, np.number):
+            weekly['dem_race_original'] = weekly['dem_race']
+            weekly.loc[(weekly.dem_race.str.contains('|', regex=False, na=False)),'dem_race']='8'
 
         # Coerce numeric values to enable merge
         weekly = weekly.apply(pd.to_numeric, errors='ignore')
@@ -258,7 +273,6 @@ def get_screening_sites(ASSETS_PATH, df, id_col):
 def add_screening_site(ASSETS_PATH, df, id_col):
     sites = get_screening_sites(ASSETS_PATH, df, id_col)
     df = sites.merge(df, how='left', on=id_col)
-    print(len(df))
     return df
 
 # ----------------------------------------------------------------------------
@@ -280,11 +294,21 @@ def get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, re
     display_terms, display_terms_dict, display_terms_dict_multi =  load_display_terms(ASSETS_PATH, display_terms_file)
 
     # Load data from API
-    weekly, r_status = get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list)
+    weekly, r_status = get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list) # Switch back to this when done debugging
+
+    # weekly, r_status = get_subjects_data_from_local_file(mcc_list) # Debugging: use local
     sweekly = add_screening_site(ASSETS_PATH, weekly, 'record_id')
 
     # Extract the one-to-many data from the adverse effects column nested dictionary
     adverse_events = extract_adverse_effects_data(weekly)
+
+# -------------------------
+# USE THIS SECTION TO LOAD LOCAL FILES DURING DEVELOPMENT TO AVOID 500 SERVER ERRORS
+    # weekly = pd.read_csv(os.path.join(DATA_PATH,'weekly.csv'))
+    # r_status='0'
+    # sweekly = pd.read_csv(os.path.join(DATA_PATH,'sweekly.csv'))
+    # adverse_events = pd.read_csv(os.path.join(DATA_PATH,'adverse_events.csv'))
+# -------------------------
 
     # Clean loaded data
     clean_weekly = clean_weekly_data(weekly, display_terms_dict)
@@ -882,6 +906,84 @@ def get_describe_col_subset(df, describe_col, subset_col, round_rows = {2:['mean
     df_describe.rename(columns={"index": ":Measure"}, inplace=True)
     create_multiindex(df_describe, ':')
     return df_describe
+
+# ----------------------------------------------------------------------------
+# Enrollment FUNCTIONS
+# ----------------------------------------------------------------------------
+def get_enrollment_data(screening_sites,screening_data, consented):
+    # Load screening sites
+    screening_sites['start_date'] = pd.to_datetime(screening_sites['start_date'], errors='coerce').dt.date
+    screening_sites = screening_sites[~(screening_sites.start_date.isna())]
+
+    # get enrollment data
+    enroll_cols = ['record_id','main_record_id','obtain_date', 'redcap_data_access_group_display']
+    enrolled = consented[consented['ewdateterm'].isna()][enroll_cols] # Do we want to do this?
+    enrolled = enrolled.merge(screening_data[['record_id','screening_site']], how='left', on='record_id')
+    enrolled = enrolled.merge(screening_sites[['screening_site','start_month','start_year']], how='left', on='screening_site')
+    enrolled['obtain_year'] = enrolled['obtain_date'].dt.year
+    enrolled['obtain_month'] = enrolled['obtain_date'].dt.month
+    enrolled['study_month'] = 12 * (enrolled['obtain_year'] - enrolled['start_year']) + enrolled['obtain_month'] - enrolled['start_month'] + 1
+    enrolled['study_month'] = enrolled['study_month'].astype(int)
+    enrolled['study_month']  = np.where(enrolled['study_month']  < 1, 1, enrolled['study_month'])
+
+    #expected data
+    expect = screening_sites[['screening_site','study_month','expected_enrollment']].copy()
+    expect['expected_enrollment'] = expect['expected_enrollment'].str.split(', ')
+    expect['study_month'] = expect['study_month'].str.split(', ')
+    expected = expect.apply(pd.Series.explode).reset_index(drop=True)
+    expected.dropna(inplace=True)
+    expected['expected_enrollment'] = expected['expected_enrollment'].astype(int)
+    expected_cum = expected.set_index(['screening_site','study_month']).groupby(level=0).cumsum().reset_index()
+    expected_cum.columns = ['screening_site','study_month','expected_enrollment_cum']
+    expected = expected.merge(expected_cum, on=['screening_site','study_month'])
+    expected.rename(columns={"expected_enrollment": "Expected: Monthly", 'expected_enrollment_cum': 'Expected: Cumulative'}, inplace=True)
+    expected = expected.melt(id_vars=['screening_site', 'study_month'])
+    expected['study_month'] = expected['study_month'].astype(int)
+
+    # get rolled up data
+    ne = enrolled[['screening_site','study_month','record_id']].copy()
+    ne = ne.groupby(['screening_site','study_month']).count()
+
+    ne_cumsum = ne.groupby(level=0).cumsum().reset_index()
+    ne_cumsum['variable'] = 'Actual: Cumulative'
+
+    ne = ne.reset_index()
+    ne['variable'] = 'Actual: Monthly'
+
+    er = pd.concat([ne,ne_cumsum])
+
+    er.rename(columns={"record_id": "value"}, inplace=True)
+
+    # Combine enrollment with expected data
+    enrollment = pd.concat([er,expected])
+
+    return enrolled, enrollment
+
+def get_site_enrollment(site, enrollment):
+    df = enrollment[enrollment['screening_site'] == site]
+    site_df = df.pivot_table(index=['study_month'],
+                        columns=['screening_site','variable'],
+                        values='value')
+    site_df.columns = site_df.columns.droplevel()
+    site_df.reset_index(inplace=True)
+    site_df['Study Time: Year'] = site_df['study_month'].apply(lambda x: int((x-1)/12))
+    site_df['Study Time: Month'] = site_df['study_month'].apply(lambda x: ((x-1) % 12) + 1)
+
+    # Fill monthly NA with 0, cumulative with max
+    site_df['Actual: Monthly'] = site_df['Actual: Monthly'].fillna(0)
+    site_df['Actual: Cumulative'] = site_df['Actual: Cumulative'].fillna(site_df['Actual: Cumulative'].max())
+
+    site_df['Percent: Monthly'] = (100 * site_df['Actual: Monthly'] / site_df['Expected: Monthly']).round(1).astype(str) + '%'
+    site_df['Percent: Cumulative'] = (100 * site_df['Actual: Cumulative'] / site_df['Expected: Cumulative']).round(1).astype(str) + '%'
+    site_df.loc[site_df['Actual: Monthly'] == 0, 'Percent: Monthly'] = ''
+
+    col_order = [ 'study_month', 'Study Time: Year', 'Study Time: Month',
+                 'Expected: Monthly', 'Expected: Cumulative',
+                 'Actual: Monthly', 'Actual: Cumulative',
+                 'Percent: Monthly', 'Percent: Cumulative'
+           ]
+    site_df = site_df[col_order]
+    return site_df
 
 
 # ----------------------------------------------------------------------------

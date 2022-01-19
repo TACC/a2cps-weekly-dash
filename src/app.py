@@ -24,6 +24,8 @@ from styling import *
 import io
 import flask
 
+# Plotly graphing
+import plotly.graph_objects as go
 
 # ----------------------------------------------------------------------------
 # DEBUGGING
@@ -97,6 +99,102 @@ def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = Fals
     except Exception as e:
         traceback.print_exc()
         return None
+
+def generate_enrollment_figure(df, x_col, bar_col, line_col, title):
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Bar(
+            x = df[x_col],
+            y= df[bar_col],
+            name= bar_col
+        ))
+
+    fig.add_trace(
+        go.Scatter(
+            x = df[x_col],
+            y= df[line_col],
+            name = line_col
+        ))
+
+    fig.update_layout(
+        legend=dict(
+            yanchor="bottom",
+            y=0.02,
+            xanchor="right",
+            x=.98
+        ),
+        yaxis_title=title,
+        margin=dict(l=20, r=20, t=0, b=20),
+                     )
+    return fig
+
+def generate_site_info(enrollment, site, id_index, table_display = 'none'):
+    site_div = html.Div([
+        html.P(site),
+        html.P(id_index),
+        dt.DataTable(
+                id='table_e',
+                columns=[{"name": i, "id": i} for i in enrollment.columns],
+                data=enrollment.to_dict('records'),
+            )
+    ])
+    # df = get_site_enrollment(enrollment, site)
+    # table_id = join('table_', id_index)
+    # site_div = html.Div(
+    #     dt.DataTable(
+    #             id=table_id,
+    #             columns=[{"name": i, "id": i} for i in df.columns],
+    #             data=df.to_dict('records'),
+    #         )
+    # )
+    return site_div
+
+def generate_site_div(site, df, id_index, table_display = 'none'):
+    # df = get_site_enrollment(enrollment, site)
+
+    # Figures
+    fig_monthly = generate_enrollment_figure(df, 'study_month', 'Actual: Monthly', 'Expected: Monthly', "Monthly Enrollment")
+    fig_cumulative = generate_enrollment_figure(df, 'study_month', 'Actual: Cumulative', 'Expected: Cumulative', "Cumulative Enrollment")
+
+    # Datatable
+    df_mi = convert_to_multindex(df, delimiter = ': ')
+    c1, dd = datatable_settings_multiindex(df_mi)
+
+    # component ids
+    fig_monthly_id = 'fig_monthly_' + str(id_index)
+    fig_cumulative_id = 'fig_cumulative_' + str(id_index)
+    datatable_id = 'table_' + str(id_index)
+
+    site_div = html.Div([
+            dbc.Row([
+                dbc.Col(html.H3(site),width=12)
+            ]),
+            dbc.Row(
+                [
+                    dbc.Col([
+                        dcc.Graph(figure=fig_monthly, id=fig_monthly_id),
+                        dcc.Graph(figure=fig_cumulative, id=fig_cumulative_id)
+                       ], lg=6),
+                    dbc.Col(
+                            [
+                                dt.DataTable(
+                                id=datatable_id,
+                                columns=c1,
+                                data=dd,
+                                merge_duplicate_headers=True,
+                            )]
+                        , lg=6),
+                ]
+            ),
+            dbc.Row(
+                [
+
+                ], style= {'display': table_display}
+            ),
+
+        ], style={"margin":"20px","padding":"30ox", "border-bottom":"1px solid black"})
+    return site_div
 
 # ----------------------------------------------------------------------------
 # TABS
@@ -286,6 +384,53 @@ def get_sections_dict_for_store(section1, section2, section3, section4):
 # ----------------------------------------------------------------------------
 # DASH APP LAYOUT FUNCTION
 # ----------------------------------------------------------------------------
+def subjects_report(page_meta_dict):
+    subjects_report = html.Div([
+            dbc.Row([
+                dbc.Col(html.H2(['A2CPS Weekly Report']),width = 12),
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        html.Button("Download as Excel",n_clicks=0, id="btn_xlxs",style =EXCEL_EXPORT_STYLE ),
+                        daq.ToggleSwitch(
+                            id='toggle-view',
+                            label=['Tabs','Single Page'],
+                            value=False,
+                            style =EXCEL_EXPORT_STYLE
+                        ),
+                    ],id='print-hide', className='print-hide'),
+                    html.H5(page_meta_dict['report_date_msg']),
+                    html.Div(id='download-msg'),
+                ],width=12),
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    html.Div(id='page_layout'),
+                ], width=12)
+            ]),
+        ])
+    return subjects_report
+
+def enrollment_report(enrollment_dict):
+    sites = enrollment_dict['sites']
+    enrollment = pd.DataFrame(enrollment_dict['enrollment'])
+    tables = []
+    for i in range(len(sites)):
+        site = sites[i]
+        site_enrollment = get_site_enrollment(site, enrollment)
+        # table_id = '_'.join('table' + str(i))
+        site_div = generate_site_div(site, site_enrollment, i)
+        tables.append(site_div)
+
+    enrollment_report = html.Div([
+        html.H1('Enrollment Report'),
+        html.Div(tables),
+
+    ])
+    return enrollment_report
+
+
 def build_page_layout(toggle_view_value, sections_dict):
 
     section1 = sections_dict['section1']
@@ -315,7 +460,7 @@ def build_page_layout(toggle_view_value, sections_dict):
     return page_layout
 
 def serve_layout():
-    page_meta_dict, tables_dict, sections_dict = {'report_date_msg':''}, {}, {}
+    page_meta_dict, tables_dict, sections_dict, enrollment_dict = {'report_date_msg':''}, {}, {}, {}
     report_date = datetime.now()
     # try:
     # get data for page
@@ -339,6 +484,17 @@ def serve_layout():
 
     # print('get sections')
     sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
+
+    # Enrollment report information
+    # print(consented.columns)
+    screening_data = add_screening_site(ASSETS_PATH, clean_weekly, 'record_id')
+    screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
+    enrolled, enrollment = get_enrollment_data(screening_sites,screening_data, consented)
+    sites = list(enrollment[enrollment.variable == 'Actual: Monthly']['screening_site'].unique())
+    enrollment_dict['enrolled'] = enrolled.to_dict('records')
+    enrollment_dict['enrollment'] = enrollment.to_dict('records')
+    enrollment_dict['sites'] = sites
+
     page_layout = html.Div(id='page_layout')
     # except Exception as e:
     #     traceback.print_exc()
@@ -348,26 +504,30 @@ def serve_layout():
         dcc.Store(id='store_meta', data = page_meta_dict),
         dcc.Store(id='store_tables', data = tables_dict),
         dcc.Store(id='store_sections', data = sections_dict),
+        dcc.Store(id='store_enrollment', data = enrollment_dict),
         Download(id="download-dataframe-xlxs"),
         Download(id="download-dataframe-html"),
 
         html.Div([
-            html.H2(['A2CPS Weekly Report']),
-            html.Div([
-                html.Button("Download as Excel",n_clicks=0, id="btn_xlxs",style =EXCEL_EXPORT_STYLE ),
-                daq.ToggleSwitch(
-                    id='toggle-view',
-                    label=['Tabs','Single Page'],
-                    value=False,
-                    style =EXCEL_EXPORT_STYLE
-                ),
-            ],id='print-hide', className='print-hide'),
-            html.H5(page_meta_dict['report_date_msg']),
-            html.Div(id='download-msg'),
-            page_layout,
+            dbc.Row(
+                dbc.Col(
+                        dcc.Dropdown(
+                            id='dropdown-report',
+                            options=[
+                                {'label': 'Subjects', 'value': 'subjects'},
+                                {'label': 'Enrollment', 'value': 'enrollment'},
+                            ],
+                            value='subjects',
+                            className='print-hide'
+                        )
+                ,width = 3),
+                justify="end",
+            ),
+            html.Div(id='report_content'),
             # html.Div(page_meta_dict['r_status'])
         ]
         , style =CONTENT_STYLE)
+
     ],style=TACC_IFRAME_SIZE)
     return s_layout
 
@@ -385,6 +545,16 @@ app.layout = serve_layout
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
+
+# Determine which report to display (TODO: add ? parameter to set this)
+@app.callback(Output("report_content","children"), Input('dropdown-report',"value"),State('store_meta', 'data'), State('store_enrollment', 'data') )
+def select_report(report, page_meta_dict, enrollment_dict):
+    if report == 'subjects':
+        return subjects_report(page_meta_dict)
+    if report == 'enrollment':
+        return enrollment_report(enrollment_dict)
+    else:
+        return html.Div('Please select a report')
 
 # Use toggle to display either tabs or single page LAYOUT
 @app.callback(Output("page_layout","children"), Input('toggle-view',"value"),State('store_sections', 'data'))
