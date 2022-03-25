@@ -4,14 +4,11 @@
 import traceback
 
 # Dash Framework
-import dash
-import dash_core_components as dcc
-import dash_html_components as html
 import dash_bootstrap_components as dbc
-import dash_table as dt
-import dash_daq as daq
-from dash.dependencies import Input, Output, State, ALL, MATCH
+from dash import Dash, callback, clientside_callback, html, dcc, dash_table as dt, Input, Output, State, MATCH, ALL
 from dash.exceptions import PreventUpdate
+import dash_daq as daq
+
 from dash_extensions import Download
 from dash_extensions.snippets import send_file
 
@@ -38,7 +35,7 @@ import plotly.graph_objects as go
 
 external_stylesheets_list = [dbc.themes.SANDSTONE] #  set any external stylesheets
 
-app = dash.Dash(__name__,
+app = Dash(__name__,
                 external_stylesheets=external_stylesheets_list,
                 meta_tags=[{'name': 'viewport', 'content': 'width=device-width, initial-scale=1'}],
                 assets_folder=ASSETS_PATH,
