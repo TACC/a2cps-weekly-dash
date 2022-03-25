@@ -4,7 +4,7 @@
 version: "3"
 services:
   a2cps_weekly_dash:
-    image: wmatacc/a2cps-weekly-dash:latest
+    build: .
     ports:
       - 8050:8050
     container_name: a2cps_weekly_dash
