@@ -59,7 +59,7 @@ mcc_list=[1,2]
 # ----------------------------------------------------------------------------
 # FUNCTIONS FOR DASH UI COMPONENTS
 # ----------------------------------------------------------------------------
-def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = False):
+def  build_datatable_from_table_dict(table_dict, key, table_id, fill_width = False):
     try:
         table_columns = table_dict[key]['columns_list']
         table_data = table_dict[key]['data']
@@ -576,15 +576,21 @@ def click_excel(n_clicks,store):
         writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
 
         for key in table_keys:
-            excel_sheet_name = store[key]['excel_sheet_name']
-            df = pd.DataFrame(store[key]['data'])
-            if len(df) == 0 :
-                df = pd.DataFrame(columns =['No data for this table'])
-            df.to_excel(writer, sheet_name=excel_sheet_name, index = False)
+                excel_sheet_name = store[key]['excel_sheet_name']
+                print(excel_sheet_name)
+                df = pd.DataFrame(store[key]['data'])
+                print(df.columns)
+                if len(df) == 0 :
+                    df = pd.DataFrame(columns =['No data for this table'])
+                try:
+                    print(key)
+                    df.to_excel(writer, sheet_name=excel_sheet_name, index = False)
+                except:
+                    print(key)
         writer.save()
 
         excel_file =  send_file(writer, download_filename)
-
+        # excel_file = None
     else:
         excel_file = None
     return excel_file
