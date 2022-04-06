@@ -205,7 +205,7 @@ def build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, 
 
     tables = (table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
-    tables_dict = {}
+    tables_dict = ()
 
     for i in range(0,len(tables_names)):
         table_name = tables_names[i]
