@@ -205,7 +205,7 @@ def build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, 
 
     tables = (table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
-    tables_dict = ()
+    tables_dict = {}
 
     for i in range(0,len(tables_names)):
         table_name = tables_names[i]
@@ -576,9 +576,10 @@ def click_excel(n_clicks,store):
 
             writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
 
-            for key in table_keys:
-                excel_sheet_name = store[key]['excel_sheet_name']
-                df = pd.DataFrame(store[key]['data'])
+            tables_names = ["table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age"]
+            for table in tables_names:
+                excel_sheet_name = store[table]['excel_sheet_name']
+                df = pd.DataFrame(store[table]['data'])
 
                 # convert multiindex columns and remove the '_'
                 new_cols = []
