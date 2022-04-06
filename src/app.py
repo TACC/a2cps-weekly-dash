@@ -568,32 +568,39 @@ def click_excel(n_clicks,store):
     if n_clicks == 0:
         raise PreventUpdate
     if store:
-        # msg =  html.Div(json.dumps(store))
-        today = datetime.now().strftime('%Y_%m_%d')
-        download_filename = datetime.now().strftime('%Y_%m_%d') + '_a2cps_weekly_report_data.xlsx'
-        table_keys = store.keys()
+        try:
+            # msg =  html.Div(json.dumps(store))
+            today = datetime.now().strftime('%Y_%m_%d')
+            download_filename = datetime.now().strftime('%Y_%m_%d') + '_a2cps_weekly_report_data.xlsx'
+            table_keys = store.keys()
 
-        writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
+            writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
 
-        for key in table_keys:
+            for key in table_keys:
                 excel_sheet_name = store[key]['excel_sheet_name']
-                print(excel_sheet_name)
                 df = pd.DataFrame(store[key]['data'])
-                print(df.columns)
+
+                # convert multiindex columns and remove the '_'
+                new_cols = []
+                for i in list(df.columns):
+                    if i[0] == '_':
+                        new_cols.append(i[1:])
+                    else:
+                        new_cols.append(i.replace('_',': '))
+                df.columns = new_cols
+
                 if len(df) == 0 :
                     df = pd.DataFrame(columns =['No data for this table'])
-                try:
-                    print(key)
-                    df.to_excel(writer, sheet_name=excel_sheet_name, index = False)
-                except:
-                    print(key)
-        writer.save()
+                df.to_excel(writer, sheet_name=excel_sheet_name, index = False)
 
-        excel_file =  send_file(writer, download_filename)
-        # excel_file = None
-    else:
-        excel_file = None
-    return excel_file
+            writer.save()
+            excel_file =  send_file(writer, download_filename)
+            return excel_file
+
+        except Exception as e:
+            traceback.print_exc()
+            return None
+
 
 # ----------------------------------------------------------------------------
 # RUN APPLICATION
