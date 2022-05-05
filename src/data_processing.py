@@ -1009,7 +1009,9 @@ def get_tables(today, start_report, end_report, report_date_msg, report_range_ms
 
     ## Deviations
     deviations = get_deviation_records(consented, clean_adverse)
-    table7a = get_deviations_by_center(centers_df, consented, deviations, display_terms_dict_multi)
+    treatment_site_list = deviations.treatment_site.unique()
+    treatment_site_df = pd.DataFrame(treatment_site_list, columns = ['treatment_site'])
+    table7a = get_deviations_by_center(treatment_site_df, consented, deviations, display_terms_dict_multi)
     table7b = get_table7b_timelimited(deviations)
 
     ## Adverse Events
