@@ -260,7 +260,7 @@ def get_screening_sites(ASSETS_PATH, df, id_col):
     screening_sites.to_sql('ss', conn, index=False)
 
     sql_qry = f'''
-    select {id_col}, screening_site
+    select {id_col}, screening_site, site, surgery_type, record_id_start, record_id_end
     from ids
     join ss on
     ids.{id_col} between ss.record_id_start and ss.record_id_end
