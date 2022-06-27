@@ -119,7 +119,7 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
 # ----------------------------------------------------------------------------
 # DATA LOADING
 # ----------------------------------------------------------------------------
-def get_subjects_json(report, report_suffix, file_url_root=None, source='local', mcc_list =[1,2],  ):
+def get_subjects_json(report, report_suffix, file_url_root=None, source='local', mcc_list =[1,2], DATA_PATH = None):
     try:
         subjects_json = {}
         # Read files into json
@@ -243,7 +243,7 @@ def add_screening_site(screening_sites, df, id_col):
 
 def get_consented_subjects(subjects_with_screening_site):
     '''Get the consented patients from subjects dataframe with screening sites added'''
-    consented = subjects_with_screening_site.copy()
+    consented = subjects_with_screening_site[subjects_with_screening_site.obtain_date.notnull()].copy()
     consented['treatment_site'] = consented.apply(lambda x: use_b_if_not_a(x['sp_data_site_display'], x['redcap_data_access_group_display']), axis=1)
     consented['treatment_site_type'] = consented['treatment_site'] + "/" + consented['surgery_type']
     return consented
