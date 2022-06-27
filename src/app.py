@@ -59,7 +59,7 @@ mcc_list=[1,2]
 # ----------------------------------------------------------------------------
 # FUNCTIONS FOR DASH UI COMPONENTS
 # ----------------------------------------------------------------------------
-def  build_datatable_from_table_dict(table_dict, key, table_id, fill_width = False):
+def build_datatable_from_table_dict(table_dict, key, table_id, fill_width = False):
     try:
         table_columns = table_dict[key]['columns_list']
         table_data = table_dict[key]['data']
@@ -410,21 +410,23 @@ def subjects_report(page_meta_dict):
     return subjects_report
 
 def enrollment_report(enrollment_dict):
-    sites = enrollment_dict['sites']
-    enrollment = pd.DataFrame(enrollment_dict['enrollment'])
-    tables = []
-    for i in range(len(sites)):
-        site = sites[i]
-        site_enrollment = get_site_enrollment(site, enrollment)
-        # table_id = '_'.join('table' + str(i))
-        site_div = generate_site_div(site, site_enrollment, i)
-        tables.append(site_div)
-
+    # sites = enrollment_dict['sites']
+    # enrollment = pd.DataFrame(enrollment_dict['enrollment'])
+    # tables = []
+    # for i in range(len(sites)):
+    #     site = sites[i]
+    #     site_enrollment = get_site_enrollment(site, enrollment)
+    #     # table_id = '_'.join('table' + str(i))
+    #     site_div = generate_site_div(site, site_enrollment, i)
+    #     tables.append(site_div)
+    #
     enrollment_report = html.Div([
         html.H1('Enrollment Report'),
-        html.Div(tables),
+
+        # html.Div(tables),
 
     ])
+
     return enrollment_report
 
 
@@ -459,43 +461,69 @@ def build_page_layout(toggle_view_value, sections_dict):
 def serve_layout():
     page_meta_dict, tables_dict, sections_dict, enrollment_dict = {'report_date_msg':''}, {}, {}, {}
     report_date = datetime.now()
-    # try:
+    try:
     # get data for page
     # print('time parameters')
-    today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
-    page_meta_dict['report_date_msg'] = report_date_msg
-    page_meta_dict['report_range_msg'] = report_range_msg
-    # print('get data inputs')
+        today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
+        page_meta_dict['report_date_msg'] = report_date_msg
+        page_meta_dict['report_range_msg'] = report_range_msg
+        # print('get data inputs')
 
-    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
-    page_meta_dict['r_status'] = r_status
+        # display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
+        display_terms, display_terms_dict, display_terms_dict_multi = load_display_terms(ASSETS_PATH, 'A2CPS_display_terms.csv')
+        screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
+        # page_meta_dict['r_status'] = r_status
 
-    # print('GET TABLE DATA')
-    table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg,display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df)
+        # Call URL for json files
 
-    # print('building tables')
-    tables_dict = build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
-    # print('building content')
-    section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
+        # Run Data Calls
+        subjects_json = get_subjects_json(report, report_suffix, file_url_root, source='url')
+        subjects, consented, adverse_events = create_clean_subjects(subjects_json, screening_sites, display_terms_dict, display_terms_dict_multi)
+        screening_centers_df, centers_df = get_centers(subjects, consented)
 
-    # print('get sections')
-    sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
+        # print('GET TABLE DATA')
+        table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df)
 
-    # Enrollment report information
-    # print(consented.columns)
-    screening_data = add_screening_site(ASSETS_PATH, clean_weekly, 'record_id')
-    screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
-    enrolled, enrollment = get_enrollment_data(screening_sites,screening_data, consented)
-    sites = list(enrollment[enrollment.variable == 'Actual: Monthly']['screening_site'].unique())
-    enrollment_dict['enrolled'] = enrolled.to_dict('records')
-    enrollment_dict['enrollment'] = enrollment.to_dict('records')
-    enrollment_dict['sites'] = sites
+        # print('building tables')
+        tables_dict = build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
-    page_layout = html.Div(id='page_layout')
-    # except Exception as e:
-    #     traceback.print_exc()
-    #     page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
+        # print('building content')
+        section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
+
+        # print('get sections')
+        sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
+
+        # # Enrollment report information
+        # mcc1_enrollments, mcc2_enrollments, summary_rollup = get_enrollment_tables(consented)
+        # enrollment_df = get_enrollment_data(consented)
+        #
+        # enrollment_df, index_col, grouping_cols, count_col_name = enrollment_df, 'obtain_month', ['mcc','screening_site','surgery_type','Site'], 'Monthly'
+        # enrollment_count = enrollment_rollup(enrollment_df, index_col, grouping_cols, count_col_name)
+        #
+        # mcc1_enrollments = get_site_enrollments(enrollment_count, 1)
+        # print('mcc1 ' + str(len(mcc1_enrollments)))
+        # mcc2_enrollments = get_site_enrollments(enrollment_count, 2)
+        # print('mcc2 ' + str(len(mcc1_enrollments)))
+        #
+        # enrollment_expectations_df = get_enrollment_expectations()
+        # print('enrollment_expectations_df')
+        # print(enrollment_expectations_df)
+        # monthly_expectations = get_enrollment_expectations_monthly(enrollment_expectations_df)
+        # print('monthly_expectations')
+        # print(monthly_expectations)
+        # summary_rollup = rollup_enrollment_expectations(enrollment_df, enrollment_expectations_df, monthly_expectations)
+        # print('summary_rollup')
+        # print(summary_rollup)
+        # enrollment_dict['mcc1_enrollments'] = mcc1_enrollments.to_dict('records')
+        # enrollment_dict['mcc2_enrollments'] = mcc2_enrollments.to_dict('records')
+        # enrollment_dict['summary_rollup'] = summary_rollup.to_dict('records')
+        # print('records in dictionary')
+
+        page_layout = html.Div(id='page_layout')
+    except Exception as e:
+        traceback.print_exc()
+        page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
 
     s_layout = html.Div([
         dcc.Store(id='store_meta', data = page_meta_dict),
@@ -512,9 +540,10 @@ def serve_layout():
                             id='dropdown-report',
                             options=[
                                 {'label': 'Subjects', 'value': 'subjects'},
-                                {'label': 'Enrollment', 'value': 'enrollment'},
+                                # {'label': 'Enrollment', 'value': 'enrollment'},
                             ],
                             value='subjects',
+                            # value = 'enrollment',
                             className='print-hide'
                         )
                 ,width = 3),
