@@ -69,12 +69,19 @@ def datatable_settings_multiindex(df, flatten_char = '_'):
 
     return datatable_col_list, datatable_data
 
+
 # ----------------------------------------------------------------------------
 # DATA DISPLAY DICTIONARIES
 # ----------------------------------------------------------------------------
+
 def load_display_terms(ASSETS_PATH, display_terms_file):
+    '''Load the data file that explains how to translate the data columns and controlled terms into the English language
+    terms to be displayed to the user'''
     try:
-        display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
+        if ASSETS_PATH:
+            display_terms = pd.read_csv(os.path.join(ASSETS_PATH, display_terms_file))
+        else:
+            display_terms = pd.read_csv(display_terms_file)
 
         # Get display terms dictionary for one-to-one records
         display_terms_uni = display_terms[display_terms.multi == 0]
@@ -109,74 +116,149 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
         traceback.print_exc()
         return None
 
-
 # ----------------------------------------------------------------------------
 # DATA LOADING
 # ----------------------------------------------------------------------------
-# Weekly data from from json files stored at TACC
-def get_subjects_data_from_local_file(mcc_list):
+def get_subjects_json(report, report_suffix, file_url_root=None, source='local', mcc_list =[1,2],  ):
     try:
+        subjects_json = {}
         # Read files into json
-        r_status = 'local_file'
-        weekly_data = pd.DataFrame()
-        for mcc in mcc_list:
-            try:
-                mcc_file = ''.join(['data/subjects-',str(mcc),'-latest.json'])
-                mcc_json = pd.read_json(mcc_file, orient='index').reset_index()
-                mcc_data['mcc'] = mcc
-                if weekly_data.empty:
-                    weekly_data = mcc_data
-                else:
-                    weekly_data = pd.concat([weekly_data, mcc_data])
-            except Exception as e:
-                traceback.print_exc()
-                weekly_data = weekly_data
-        if 'index' in weekly_data.columns:
-            weekly_data.rename(columns={"index": "record_id"}, inplace=True)
-        return weekly_data, r_status
-    except Exception as e:
-        traceback.print_exc()
-        return None, None
-
-def get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list):
-    try:
-        # Read files into json
-        weekly_data = pd.DataFrame()
-        for mcc in mcc_list:
-            try:
+        if source == 'url':
+            for mcc in mcc_list:
                 json_url = '/'.join([file_url_root, report,report_suffix.replace('[mcc]',str(mcc))])
                 r = requests.get(json_url)
                 if r.status_code == 200:
                 # TO DO: add an else statement to use local files if the request fails
                     mcc_json = r.json()
-                    mcc_data = pd.DataFrame.from_dict(mcc_json, orient = 'index').reset_index()
-                    mcc_data['mcc'] = mcc
-                    if weekly_data.empty:
-                        weekly_data = mcc_data
-                    else:
-                        weekly_data = pd.concat([weekly_data, mcc_data])
-                else:
-                    print(r.status_code)
-                    # Remove these 2 lines if you don't want to use local files
-                    # weekly_data, r_status = get_subjects_data_from_local_file(mcc_list)
-                    # return weekly_data, r_status
-            except Exception as e:
-                traceback.print_exc()
-                weekly_data = weekly_data
-        if 'index' in weekly_data.columns:
-            weekly_data.rename(columns={"index": "record_id"}, inplace=True)
-        return weekly_data, r.status_code
+                    subjects_json[mcc] = mcc_json
+        else:
+            for mcc in mcc_list:
+                mcc_filename = ''.join(['subjects-',str(mcc),'-latest.json'])
+                mcc_file = os.path.join(DATA_PATH, mcc_filename)
+                with open(mcc_file, 'r') as f:
+                    subjects_json[mcc] = json.load(f)
+        return subjects_json
+
     except Exception as e:
         traceback.print_exc()
-        return None, None
+        return {'data':'not found'}
 
-# Extract data with multiple values (stored as 'adverse effects' column)
-def extract_adverse_effects_data(weekly_data):
-    index_cols = ['record_id','main_record_id', 'mcc']
+
+# ----------------------------------------------------------------------------
+# DATA CLEANING
+# ----------------------------------------------------------------------------
+
+def combine_mcc_json(mcc_json):
+    '''Convert MCC json subjects data into dataframe and combine'''
+    df = pd.DataFrame()
+    for mcc in mcc_json:
+        mcc_data = pd.DataFrame.from_dict(mcc_json[mcc], orient='index').reset_index()
+        mcc_data['mcc'] = mcc
+        if df.empty:
+            df = mcc_data
+        else:
+            df = pd.concat([df, mcc_data])
+
+    return df
+
+def create_clean_subjects(subjects_json, screening_sites, display_terms_dict, display_terms_dict_multi, drop_cols_list =['adverse_effects']):
+    '''Take the raw subjects data frame and clean it up. Note that apis don't pass datetime columns well, so
+    these should be converted to datetime by the receiver.
+    datetime columns = ['date_of_contact','date_and_time','obtain_date','ewdateterm','sp_surg_date','sp_v1_preop_date','sp_v2_6wk_date','sp_v3_3mo_date']
+    Can convert within a pd.DataFrame using .apply(pd.to_datetime, errors='coerce')'''
+    try:
+        # Combine jsons into single dataframe
+        subjects_raw = combine_mcc_json(subjects_json)
+        subjects_raw.reset_index(drop=True, inplace=True)
+
+        #--- Clean up subjects (move to own function?)
+        subjects = subjects_raw.copy()
+        # Rename 'index' to 'record_id'
+        subjects.rename(columns={"index": "record_id"}, inplace = True)
+
+        # Drop adverse events column
+        subjects = subjects.drop(columns=drop_cols_list)
+        # Convert all string 'N/A' values to nan values
+        subjects = subjects.replace('N/A', np.nan)
+
+        # Handle 1-many dem_race, take multi-select values and convert to 8
+        if not np.issubdtype(subjects['dem_race'].dtype, np.number):
+            subjects['dem_race_original'] = subjects['dem_race']
+            subjects.loc[(subjects.dem_race.str.contains('|', regex=False, na=False)),'dem_race']='8'
+
+        # Coerce numeric values to enable merge
+        subjects = subjects.apply(pd.to_numeric, errors='ignore')
+
+        # Merge columns on the display terms dictionary to convert from database terminology to user terminology
+        for i in display_terms_dict.keys():
+            if i in subjects.columns: # Merge columns if the column exists in the dataframe
+                display_terms = display_terms_dict[i]
+                if subjects[i].dtype == np.float64:
+                    # for display columns where data is numeric, merge on display dictionary, treating cols as floats to handle nas
+                    display_terms[i] = display_terms[i].astype('float64')
+                subjects = subjects.merge(display_terms, how='left', on=i)
+        #------
+
+
+        # Add screening sites
+        subjects = add_screening_site(screening_sites, subjects, 'record_id')
+
+        # Convert datetime columns
+        datetime_cols_list = ['date_of_contact','date_and_time','obtain_date','ewdateterm','sp_surg_date','sp_v1_preop_date','sp_v2_6wk_date','sp_v3_3mo_date'] #erep_local_dtime also dates, but currently an array
+        subjects[datetime_cols_list] = subjects[datetime_cols_list].apply(pd.to_datetime, errors='coerce')
+
+        # Get subset of data for consented patients
+        consented = get_consented_subjects(subjects)
+
+        # Extract adverse events data
+        adverse_events = clean_adverse_events(extract_adverse_effects_data(subjects_raw), display_terms_dict_multi)
+
+        return subjects, consented, adverse_events
+
+    except Exception as e:
+        traceback.print_exc()
+        return None
+
+def add_screening_site(screening_sites, df, id_col):
+    # Get dataframes
+    ids = df.loc[:, [id_col]]
+
+    # open sql connection to create new datarframe with record_id paired to screening site
+    conn = sqlite3.connect(':memory:')
+    ids.to_sql('ids', conn, index=False)
+    screening_sites.to_sql('ss', conn, index=False)
+
+    sql_qry = f'''
+    select {id_col}, screening_site, site, surgery_type, record_id_start, record_id_end
+    from ids
+    join ss on
+    ids.{id_col} between ss.record_id_start and ss.record_id_end
+    '''
+    sites = pd.read_sql_query(sql_qry, conn)
+    conn.close()
+
+    df = sites.merge(df, how='left', on=id_col)
+
+    return df
+
+def get_consented_subjects(subjects_with_screening_site):
+    '''Get the consented patients from subjects dataframe with screening sites added'''
+    consented = subjects_with_screening_site.copy()
+    consented['treatment_site'] = consented.apply(lambda x: use_b_if_not_a(x['sp_data_site_display'], x['redcap_data_access_group_display']), axis=1)
+    consented['treatment_site_type'] = consented['treatment_site'] + "/" + consented['surgery_type']
+    return consented
+
+
+
+def extract_adverse_effects_data(subjects_data, adverse_effects_col = 'adverse_effects'):
+    '''Extract data with multiple values (stored as 'adverse effects' column) from the subjects data.
+    Adverse effects data is stored in a nested dictionary format - this function unpacks that.'''
+
+    index_cols = ['index','main_record_id', 'mcc']
     # reset index using index_cols
-    weekly_data = weekly_data.set_index(index_cols)
+    multi_data = subjects_data.set_index(index_cols).copy()
     # Extract multi data values
-    multi_df = weekly_data[['adverse_effects']].dropna()
+    multi_df = multi_data[[adverse_effects_col]].dropna()
     # Convert from data frame back to dict
     multi_dict = multi_df.to_dict('index')
     # Turn dict into df with multi=index and reset_index
@@ -189,91 +271,46 @@ def extract_adverse_effects_data(weekly_data):
     # Replace empty strings with NaN
     multi = multi.replace(r'^\s*$', np.nan, regex=True)
     multi = multi.reset_index()
+    # Convert level 0 of index from nested index back into columns
     multi[index_cols] = pd.DataFrame(multi['level_0'].tolist(), index=multi.index)
+    # Label level 1 of multiindex as the instance of adverse events for a given subject
     multi['instance'] = multi['level_1']
+    # Drop the extraneous columns
     multi.drop(['level_0', 'level_1'], axis=1, inplace=True)
+
+    # Move index columns to start of dataframe
+    index_cols.append('instance')
+    new_col_order = index_cols + list(multi.columns.drop(index_cols))
+    multi = multi[new_col_order]
     return multi
-
-# ----------------------------------------------------------------------------
-# DATA CLEANING
-# ----------------------------------------------------------------------------
-
-def clean_weekly_data(weekly, display_terms_dict):
-    try:
-        # Convert all string 'N/A' values to nan values
-        weekly = weekly.replace('N/A', np.nan)
-
-        # Handle 1-many dem_race, take multi-select values and convert to 8
-        if not np.issubdtype(weekly['dem_race'].dtype, np.number):
-            weekly['dem_race_original'] = weekly['dem_race']
-            weekly.loc[(weekly.dem_race.str.contains('|', regex=False, na=False)),'dem_race']='8'
-
-        # Coerce numeric values to enable merge
-        weekly = weekly.apply(pd.to_numeric, errors='ignore')
-
-        for i in display_terms_dict.keys():
-            if i in weekly.columns:
-                display_terms = display_terms_dict[i]
-                if weekly[i].dtype == np.float64:
-                    # for display columns where data is numeric, merge on display dictionary, treating cols as floats to handle nas
-                    display_terms[i] = display_terms[i].astype('float64')
-                weekly = weekly.merge(display_terms, how='left', on=i)
-
-        # convert date columns from object --> datetime datatypes as appropriate
-        datetime_cols_list = ['date_of_contact','date_and_time','obtain_date','ewdateterm','sp_surg_date','sp_v1_preop_date','sp_v2_6wk_date','sp_v3_3mo_date'] #erep_local_dtime also dates, but currently an array
-        weekly[datetime_cols_list] = weekly[datetime_cols_list].apply(pd.to_datetime, errors='coerce')
-
-        return weekly
-
-    except Exception as e:
-        traceback.print_exc()
-        return None, None
-
 
 def clean_adverse_events(adverse_events, display_terms_dict_multi):
     try:
         # Coerce to numeric
         multi_data = adverse_events.apply(pd.to_numeric, errors='ignore')
 
-        # convert date columns from object --> datetime datatypes as appropriate
-        multi_datetime_cols = ['erep_local_dtime','erep_ae_date','erep_onset_date','erep_resolution_date']
-        multi_data[multi_datetime_cols] = multi_data[multi_datetime_cols].apply(pd.to_datetime, errors='coerce')
-
         # Convert numeric values to display values using dictionary
         for i in display_terms_dict_multi.keys():
             if i in multi_data.columns:
                 multi_data = multi_data.merge(display_terms_dict_multi[i], how='left', on=i)
+
+        # Rename 'index' to 'record_id'
+        multi_data.rename(columns={"index": "record_id"}, inplace = True)
 
         return multi_data
     except Exception as e:
         traceback.print_exc()
         return None
 
-def get_screening_sites(ASSETS_PATH, df, id_col):
-    # Get dataframes
-    ids = df.loc[:, [id_col]]
-    screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
-
-    # open sql connection to create new datarframe with record_id paired to screening site
-    conn = sqlite3.connect(':memory:')
-    ids.to_sql('ids', conn, index=False)
-    screening_sites.to_sql('ss', conn, index=False)
-
-    sql_qry = f'''
-    select {id_col}, screening_site
-    from ids
-    join ss on
-    ids.{id_col} between ss.record_id_start and ss.record_id_end
-    '''
-    sites = pd.read_sql_query(sql_qry, conn)
-    conn.close()
-
-    return sites
-
-def add_screening_site(ASSETS_PATH, df, id_col):
-    sites = get_screening_sites(ASSETS_PATH, df, id_col)
-    df = sites.merge(df, how='left', on=id_col)
-    return df
+def get_centers(subjects, consented):
+    ''' Get list of centers to use in the system '''
+    # screening centers
+    screening_centers_list = subjects.redcap_data_access_group_display.unique()
+    screening_centers_df = pd.DataFrame(screening_centers_list, columns = ['redcap_data_access_group_display'])
+    # treatment centers
+    centers_list = consented.redcap_data_access_group_display.unique()
+    centers_df = pd.DataFrame(centers_list, columns = ['treatment_site'])
+    return screening_centers_df, centers_df
 
 # ----------------------------------------------------------------------------
 # Get dataframes and parameters
@@ -287,48 +324,6 @@ def get_time_parameters(end_report, report_days_range = 7):
     report_range_msg = 'This report generated on: ' + str(datetime.today().date()) + ' covering the previous ' + str(report_days_range) + ' days.'
     report_date_msg = 'This report generated on: ' + str(datetime.today().date())
     return today, start_report, end_report, report_date_msg, report_range_msg
-
-def get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list):
-    ''' Take the input parameters, files and project specific functions to create base dataframes for use in the page '''
-    # Load display dictionaries to turn numeric values into display values
-    display_terms, display_terms_dict, display_terms_dict_multi =  load_display_terms(ASSETS_PATH, display_terms_file)
-
-    # Load data from API
-    weekly, r_status = get_subjects_data_from_file(file_url_root, report, report_suffix, mcc_list) # Switch back to this when done debugging
-
-    # weekly, r_status = get_subjects_data_from_local_file(mcc_list) # Debugging: use local
-    sweekly = add_screening_site(ASSETS_PATH, weekly, 'record_id')
-
-    # Extract the one-to-many data from the adverse effects column nested dictionary
-    adverse_events = extract_adverse_effects_data(weekly)
-
-# -------------------------
-# USE THIS SECTION TO LOAD LOCAL FILES DURING DEVELOPMENT TO AVOID 500 SERVER ERRORS
-    # weekly = pd.read_csv(os.path.join(DATA_PATH,'weekly.csv'))
-    # r_status='0'
-    # sweekly = pd.read_csv(os.path.join(DATA_PATH,'sweekly.csv'))
-    # adverse_events = pd.read_csv(os.path.join(DATA_PATH,'adverse_events.csv'))
-# -------------------------
-
-    # Clean loaded data
-    clean_weekly = clean_weekly_data(weekly, display_terms_dict)
-    clean_adverse = clean_adverse_events(adverse_events, display_terms_dict_multi)
-    screening_data = add_screening_site(ASSETS_PATH, clean_weekly, 'record_id')
-
-    # Get subset of consented patients, i.e. main_record_id exists
-    consented = screening_data[screening_data.obtain_date.notnull()].copy()
-    # Get treatment site for consented patients, using sp
-    consented['treatment_site'] = consented.apply(lambda x: use_b_if_not_a(x['sp_data_site_display'], x['redcap_data_access_group_display']), axis=1)
-
-    # Get list of centers to use in the system
-    # screening centers
-    screening_centers_list = clean_weekly.redcap_data_access_group_display.unique()
-    screening_centers_df = pd.DataFrame(screening_centers_list, columns = ['redcap_data_access_group_display'])
-    # treatment centers
-    centers_list = clean_weekly.redcap_data_access_group_display.unique()
-    centers_df = pd.DataFrame(centers_list, columns = ['treatment_site'])
-
-    return display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status
 
 
 # ----------------------------------------------------------------------------
@@ -496,15 +491,17 @@ def get_table_3_screening(df,end_report_date = datetime.now(), days_range = 30):
 
     return t3, t3_aggregate
 
-
 # ----------------------------------------------------------------------------
 # Study Status Tables
 # ----------------------------------------------------------------------------
-def get_table_4(centers, consented_patients, compare_date = datetime.now()):
+def get_table_4(consented_patients, compare_date = datetime.now()):
     # select table4 columns for patients with a main record id
-    table4_cols = ["main_record_id", "treatment_site", "start_v1_preop","sp_surg_date",
+    category_cols = ["treatment_site", "surgery_type"]
+
+    table4_cols = ["main_record_id",  "start_v1_preop","sp_surg_date",
                    "start_v2_6wk","start_v3_3mo","start_6mo","start_12mo", 'ewdateterm']
-    table4 = consented_patients[table4_cols]
+
+    table4 = consented_patients[category_cols + table4_cols]
 
     # Sort by record ID
     table4 = table4.sort_values(by=['main_record_id'])
@@ -520,20 +517,18 @@ def get_table_4(centers, consented_patients, compare_date = datetime.now()):
     agg_dict = {'main_record_id':'size',
                 'start_v1_preop':'sum','surg_complete':'sum','start_v2_6wk': 'sum',
                 'start_v3_3mo': 'sum', 'start_6mo': 'sum', 'start_12mo': 'sum','ewdateterm': 'sum',}
-    table4_agg = table4.groupby('treatment_site').agg(agg_dict).reset_index()
-
-    # Merge Centers list with aggregated data
-    table4_agg = centers.merge(table4_agg, how='outer', on = 'treatment_site')
+    table4_agg = table4.groupby(category_cols).agg(agg_dict).reset_index()
 
     # fill na with 0
     table4_agg.fillna(0, inplace=True)
 
     # treat numeric columns as ints
-    int_cols = table4_agg.columns.drop('treatment_site')
+    int_cols = table4_agg.columns.drop(category_cols)
     table4_agg[int_cols] = table4_agg[int_cols].astype(int)
 
     # Rename columns
     rename_cols_dict = {'treatment_site':'Center',
+                        'surgery_type':'Surgery',
                         'main_record_id': 'Consented',
                         'start_v1_preop': 'Baseline',
                         'surg_complete': 'Surgery Complete',
@@ -553,7 +548,7 @@ def get_table_4(centers, consented_patients, compare_date = datetime.now()):
 def get_tables_5_6(df):
     # Get patients who rescinded consent, i.e. have a value in the 'ewdateterm' column
     rescinded = df.dropna(subset=['ewdateterm'])
-    rescinded_cols = ['treatment_site','main_record_id','obtain_date','sp_surg_date','ewdateterm','ewprimaryreason_display','ewcomments']
+    rescinded_cols = ['treatment_site','surgery_type','main_record_id','obtain_date','sp_surg_date','ewdateterm','ewprimaryreason_display','ewcomments']
     rescinded = rescinded[rescinded_cols]
 
     # Display main record id as int
@@ -565,7 +560,7 @@ def get_tables_5_6(df):
 
     # TO DO: need to convert reasons to text reasons
     # Rename columns to user friendly versions
-    rescinded.columns =['Center Name', 'Record ID', 'Consent Date','Surgery Date',
+    rescinded.columns =['Center Name','Surgery', 'Record ID', 'Consent Date','Surgery Date',
        'Early Termination Date', 'Reason', 'Comments']
 
     # rescinded['pre-surgery'] = np.where(rescinded['Early Termination Date'] < rescinded['Surgery Date'], 'Active', 'Inactive')
@@ -585,7 +580,7 @@ def get_tables_5_6(df):
 # ----------------------------------------------------------------------------
 # Deviation & Adverse Event Tables
 # ----------------------------------------------------------------------------
-def get_deviation_records(weekly, adverse_events):
+def get_deviation_records(consented, adverse_events):
     # Set which columns to select
     deviations_cols = ['record_id','main_record_id', 'mcc', 'instance','erep_local_dtime',
            'erep_protdev_type','erep_protdev_type_display','erep_protdev_desc',
@@ -595,7 +590,10 @@ def get_deviation_records(weekly, adverse_events):
     deviations = adverse_events[adverse_events.erep_protdev_type.notnull()][deviations_cols]
 
     # Merge deviations with center info
-    deviations = deviations.merge(weekly[['treatment_site','main_record_id','mcc','start_v1_preop']], how='left', on = ['main_record_id','mcc'])
+    deviations = deviations.merge(consented[['treatment_site','main_record_id','mcc','start_v1_preop']], how='left', on = ['main_record_id','mcc'])
+
+    # convert datetime column to datetime
+    deviations['erep_local_dtime'] = deviations['erep_local_dtime'].apply(pd.to_datetime, errors='coerce')
 
     return deviations
 
@@ -698,7 +696,7 @@ def get_table7b_timelimited(deviations,end_report_date = datetime.now(), days_ra
     return table7b
 
 
-def get_adverse_event_records(weekly, adverse_events):
+def get_adverse_event_records(consented, adverse_events):
     # Set which columns to select
     adverse_event_flag_cols = ['erep_ae_yn'] # must = 1
     adverse_event_cols = ['main_record_id', 'mcc', 'instance','erep_ae_yn','erep_ae_relation', 'erep_ae_severity', 'erep_ae_serious',
@@ -710,7 +708,7 @@ def get_adverse_event_records(weekly, adverse_events):
     ae = adverse_events[adverse_events.erep_ae_yn==1][adverse_event_cols]
 
     # Merge adverse events with center info
-    ae = ae.merge(weekly[['treatment_site','main_record_id','mcc','sp_surg_date']], how='left', on = ['main_record_id','mcc'])
+    ae = ae.merge(consented[['treatment_site','surgery_type','main_record_id','mcc','sp_surg_date']], how='left', on = ['main_record_id','mcc'])
 
     return ae
 
@@ -788,12 +786,13 @@ def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapp
 
 def get_table_8b(event_records, end_report, report_days = 30):
     table8b_cols_dict = {'treatment_site':'Center',
+                         'surgery_type':'Surgery',
                     'main_record_id':'PID',
                     'erep_onset_date':'AE Date',
                          'sp_surg_date': 'Surgery Date',
                    'erep_ae_severity_display':'Severity',
                     'erep_ae_relation_display':'Relationship',
-#                     'erep_ae_serious_display':'Serious',
+    #                     'erep_ae_serious_display':'Serious',
                   'erep_ae_desc':'Description',
                     'erep_action_taken':'Action',
                     'erep_outcome':'Outcome'}
@@ -809,7 +808,7 @@ def get_table_8b(event_records, end_report, report_days = 30):
         table8b = table8b[(table8b.erep_onset_date > start_report) &  (table8b.erep_onset_date <= end_report)]
 
     # convert datetime column to show date
-    table8b.erep_onset_date = table8b.erep_onset_date.dt.strftime('%m/%d/%Y')
+    table8b.erep_onset_date = table8b.erep_onset_date.apply(pd.to_datetime, errors='coerce').dt.strftime('%m/%d/%Y')
 
     # Use col dict to rename cols for display
     table8b = table8b.rename(columns=table8b_cols_dict)
@@ -821,11 +820,13 @@ def get_table_8b(event_records, end_report, report_days = 30):
 
 
     return table8b
+
+
 # ----------------------------------------------------------------------------
 # Demographics Tables
 # ----------------------------------------------------------------------------
 def get_demographic_data(df):
-    id_cols = ['record_id','mcc','treatment_site', 'ewdateterm']
+    id_cols = ['record_id','mcc','treatment_site', 'surgery_type','ewdateterm']
     demo_cols = ['age', 'dem_race_display', 'ethnic_display',  'sex_display']
     screening_cols = ['screening_age', 'screening_race_display', 'screening_ethnicity_display', 'screening_gender_display']
     demo= df[id_cols + demo_cols + screening_cols].copy()
@@ -854,7 +855,7 @@ def get_demographic_data(df):
     demo['Status'] = np.where(demo.ewdateterm == 'Unknown', 'Active', 'Inactive')
 
     # 5) Rename Columns
-    demo.columns = ['ID', 'MCC', 'Center Name', 'Termination Date','Age', 'Race', 'Ethnicity', 'Sex', 'Status']
+    demo.columns = ['ID', 'MCC', 'Center Name','Surgery', 'Termination Date','Age', 'Race', 'Ethnicity', 'Sex', 'Status']
 
     return demo
 
@@ -881,8 +882,8 @@ def rollup_with_split_col(demo_df, demo_col, display_terms_dict, display_term_ke
         df = demo_df[demo_df[split_col] == i]
         i_rollup = rollup_demo_data(df, demo_col, display_terms_dict, display_term_key)
         i_rollup.columns =[demo_col,
-                 str(split_col) + str(i) + ':Count',
-                 str(split_col) + str(i) + ':Percent']
+                 str(i) + ':Count',
+                 str(i) + ':Percent']
         rollup = rollup.merge(i_rollup, how='left', on=demo_col)
     rollup.rename(columns={demo_col: ':'+demo_col}, inplace=True)
     create_multiindex(rollup, ':')
@@ -901,7 +902,7 @@ def get_describe_col_subset(df, describe_col, subset_col, round_rows = {2:['mean
     for i in list(df[subset_col].unique()):
         i_df = df[df[subset_col] == i]
         i_describe = get_describe_col(i_df, describe_col)
-        i_describe.columns = ['index',describe_col + ': ' + subset_col + str(i)]
+        i_describe.columns = ['index',describe_col + ': ' + str(i)]
         df_describe = df_describe.merge(i_describe, how='left', on='index')
     df_describe.rename(columns={"index": ":Measure"}, inplace=True)
     create_multiindex(df_describe, ':')
@@ -910,122 +911,141 @@ def get_describe_col_subset(df, describe_col, subset_col, round_rows = {2:['mean
 # ----------------------------------------------------------------------------
 # Enrollment FUNCTIONS
 # ----------------------------------------------------------------------------
-def get_enrollment_data(screening_sites,screening_data, consented):
-    # Load screening sites
-    screening_sites['start_date'] = pd.to_datetime(screening_sites['start_date'], errors='coerce').dt.date
-    screening_sites = screening_sites[~(screening_sites.start_date.isna())]
 
-    # get enrollment data
-    enroll_cols = ['record_id','main_record_id','obtain_date', 'redcap_data_access_group_display']
+def get_enrollment_data(consented):
+    enroll_cols = ['record_id','main_record_id','obtain_date','mcc', 'screening_site', 'surgery_type',]
     enrolled = consented[consented['ewdateterm'].isna()][enroll_cols] # Do we want to do this?
-    enrolled = enrolled.merge(screening_data[['record_id','screening_site']], how='left', on='record_id')
-    enrolled = enrolled.merge(screening_sites[['screening_site','start_month','start_year']], how='left', on='screening_site')
-    enrolled['obtain_year'] = enrolled['obtain_date'].dt.year
-    enrolled['obtain_month'] = enrolled['obtain_date'].dt.month
-    enrolled['study_month'] = 12 * (enrolled['obtain_year'] - enrolled['start_year']) + enrolled['obtain_month'] - enrolled['start_month'] + 1
-    enrolled['study_month'] = enrolled['study_month'].astype(int)
-    enrolled['study_month']  = np.where(enrolled['study_month']  < 1, 1, enrolled['study_month'])
+    enrolled['obtain_month'] = enrolled['obtain_date'].dt.to_period('M')
+    enrolled['Site'] = enrolled['screening_site'] + ' (' + enrolled['surgery_type'] + ')'
+    return enrolled
 
-    #expected data
-    expect = screening_sites[['screening_site','study_month','expected_enrollment']].copy()
-    expect['expected_enrollment'] = expect['expected_enrollment'].str.split(', ')
-    expect['study_month'] = expect['study_month'].str.split(', ')
-    expected = expect.apply(pd.Series.explode).reset_index(drop=True)
-    expected.dropna(inplace=True)
-    expected['expected_enrollment'] = expected['expected_enrollment'].astype(int)
-    expected_cum = expected.set_index(['screening_site','study_month']).groupby(level=0).cumsum().reset_index()
-    expected_cum.columns = ['screening_site','study_month','expected_enrollment_cum']
-    expected = expected.merge(expected_cum, on=['screening_site','study_month'])
-    expected.rename(columns={"expected_enrollment": "Expected: Monthly", 'expected_enrollment_cum': 'Expected: Cumulative'}, inplace=True)
-    expected = expected.melt(id_vars=['screening_site', 'study_month'])
-    expected['study_month'] = expected['study_month'].astype(int)
+def enrollment_rollup(enrollment_df, index_col, grouping_cols, count_col_name, cumsum=True, fill_na_value = 0):
+    enrollment_count = enrollment_df.groupby([index_col] + grouping_cols).size().reset_index(name=count_col_name).fillna({count_col_name:fill_na_value})
+    if cumsum:
+        enrollment_count['Cumulative'] = enrollment_count.groupby(grouping_cols)[count_col_name].cumsum()
 
-    # get rolled up data
-    ne = enrolled[['screening_site','study_month','record_id']].copy()
-    ne = ne.groupby(['screening_site','study_month']).count()
+    return enrollment_count
 
-    ne_cumsum = ne.groupby(level=0).cumsum().reset_index()
-    ne_cumsum['variable'] = 'Actual: Cumulative'
+def get_site_enrollments(enrollment_count, mcc):
+    site_enrollments = enrollment_count[enrollment_count.mcc == mcc]
+    site_enrollments = pd.pivot(site_enrollments, index=['obtain_month'], columns = 'Site', values=['Monthly','Cumulative'])
+    site_enrollments = site_enrollments.swaplevel(0,1, axis=1).sort_index(axis=1).reindex(['Monthly','Cumulative'], level=1, axis=1).reset_index()
+    site_enrollments['Month'] = site_enrollments['obtain_month'].dt.strftime("%B")
+    site_enrollments['Year'] = site_enrollments['obtain_month'].dt.strftime("%Y")
+    site_enrollments = site_enrollments.set_index(['Month','Year']).drop(columns='obtain_month')
+    return site_enrollments
 
-    ne = ne.reset_index()
-    ne['variable'] = 'Actual: Monthly'
+def get_enrollment_expectations():
+    enrollment_expectations_dict = {'mcc': ['1','1','2','2'],
+                                'surgery_type':['TKA','Thoracic','Thoracic','TKA'],
+                                'start_month': ['02/22','06/22','02/22','06/22'],
+                                'expected_cumulative_start':[280,10,70,10], 'expected_monthly':[30,10,30,10]}
 
-    er = pd.concat([ne,ne_cumsum])
+    enrollment_expectations_df = pd.DataFrame.from_dict(enrollment_expectations_dict)
+    enrollment_expectations_df['start_month'] =  pd.to_datetime(enrollment_expectations_df['start_month'], format='%m/%y').dt.to_period('M')
 
-    er.rename(columns={"record_id": "value"}, inplace=True)
+    enrollment_expectations_df['mcc'] = enrollment_expectations_df['mcc'].astype(int)
 
-    # Combine enrollment with expected data
-    enrollment = pd.concat([er,expected])
+    return enrollment_expectations_df
 
-    return enrolled, enrollment
+def get_enrollment_expectations_monthly(enrollment_expectations_df):
+    mcc_type_expectations = pd.DataFrame()
+    for i in range(len(enrollment_expectations_df)):
+        mcc = enrollment_expectations_df.iloc[i]['mcc']
+        surgery_type = enrollment_expectations_df.iloc[i]['surgery_type']
+        start_month = enrollment_expectations_df.iloc[i]['start_month']
+        expected_start_count = enrollment_expectations_df.iloc[i]['expected_cumulative_start']
+        expected_monthly = enrollment_expectations_df.iloc[i]['expected_monthly']
 
-def get_site_enrollment(site, enrollment):
-    df = enrollment[enrollment['screening_site'] == site]
-    site_df = df.pivot_table(index=['study_month'],
-                        columns=['screening_site','variable'],
-                        values='value')
-    site_df.columns = site_df.columns.droplevel()
-    site_df.reset_index(inplace=True)
-    site_df['Study Time: Year'] = site_df['study_month'].apply(lambda x: int((x-1)/12))
-    site_df['Study Time: Month'] = site_df['study_month'].apply(lambda x: ((x-1) % 12) + 1)
+        months = pd.period_range(start_month,datetime.now(),freq='M').tolist()
+        expected_monthly_series = [expected_start_count] + (len(months)-1) * [expected_monthly]
 
-    # Fill monthly NA with 0, cumulative with max
-    site_df['Actual: Monthly'] = site_df['Actual: Monthly'].fillna(0)
-    site_df['Actual: Cumulative'] = site_df['Actual: Cumulative'].fillna(site_df['Actual: Cumulative'].max())
+        for index, month in enumerate(months):
+            new_row = {'mcc':mcc,
+                       'surgery_type': surgery_type,
+                       'Month': month,
+                       'Expected: Monthly': expected_monthly_series[index],
+                       'Expected: Cumulative': expected_start_count+index*expected_monthly}
+            mcc_type_expectations = mcc_type_expectations.append(new_row, ignore_index=True)
 
-    site_df['Percent: Monthly'] = (100 * site_df['Actual: Monthly'] / site_df['Expected: Monthly']).round(1).astype(str) + '%'
-    site_df['Percent: Cumulative'] = (100 * site_df['Actual: Cumulative'] / site_df['Expected: Cumulative']).round(1).astype(str) + '%'
-    site_df.loc[site_df['Actual: Monthly'] == 0, 'Percent: Monthly'] = ''
+    return mcc_type_expectations
 
-    col_order = [ 'study_month', 'Study Time: Year', 'Study Time: Month',
-                 'Expected: Monthly', 'Expected: Cumulative',
-                 'Actual: Monthly', 'Actual: Cumulative',
-                 'Percent: Monthly', 'Percent: Cumulative'
-           ]
-    site_df = site_df[col_order]
-    return site_df
+def rollup_enrollment_expectations(enrollment_df, enrollment_expectations_df, monthly_expectations):
+    enrollment_df = enrollment_df.merge(enrollment_expectations_df[['mcc','surgery_type','start_month']], how='left', on=['mcc','surgery_type'])
 
+    # Determine if values in early months or should be broken out
+    enrollment_df['expected_month'] = np.where(enrollment_df['obtain_month'] <= enrollment_df['start_month'], enrollment_df['start_month'], enrollment_df['obtain_month'] )
+
+    # Rolll up data by month
+    ee_rollup = enrollment_rollup(enrollment_df, 'expected_month', ['mcc','surgery_type'], 'Monthly').sort_values(by='mcc')
+    ee_rollup_rename_dict={
+        'expected_month':'Month',
+        'Monthly': 'Actual: Monthly',
+        'Cumulative': 'Actual: Cumulative'
+    }
+    ee_rollup.rename(columns=ee_rollup_rename_dict,inplace=True)
+
+    # Merge on Monthly expectations
+    ee_rollup = ee_rollup.merge(monthly_expectations, how='left', on=['mcc','surgery_type','Month'])
+
+    # Calculate percent peformance actual vs expectations
+    ee_rollup['Percent: Monthly'] = (100 * ee_rollup['Actual: Monthly'] / ee_rollup['Expected: Monthly']).round(1).astype(str) + '%'
+    ee_rollup['Percent: Cumulative'] = (100 * ee_rollup['Actual: Cumulative'] / ee_rollup['Expected: Cumulative']).round(1).astype(str) + '%'
+    ee_rollup.loc[ee_rollup['Actual: Monthly'] == 0, 'Percent: Monthly'] = ''
+
+    # Add Site name column
+    ee_rollup['Site'] = ee_rollup.apply(lambda x: 'MCC' + str(x['mcc']) + ' (' + x['surgery_type'] + ')',axis=1)
+    ee_rollup_cols = ['Site','Month', 'Actual: Monthly', 'Actual: Cumulative',
+       'Expected: Monthly', 'Expected: Cumulative', 'Percent: Monthly','Percent: Cumulative']
+
+    ee_rollup = ee_rollup[ee_rollup_cols]
+
+    return ee_rollup
 
 # ----------------------------------------------------------------------------
 # GET DATA FOR PAGE
 # ----------------------------------------------------------------------------
 
-def get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df):
+# ----------------------------------------------------------------------------
+# GET DATA FOR PAGE
+# ----------------------------------------------------------------------------
+def get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df):
     ''' Load all the data for the page'''
     ## SCREENING TABLES
-    table1 = get_table_1_screening(screening_data)
+    table1 = get_table_1_screening(subjects)
 
     display_terms_t2a = display_terms_dict_multi['reason_not_interested']
-    table2a = get_table_2a_screening(screening_data, display_terms_t2a)
+    table2a = get_table_2a_screening(subjects, display_terms_t2a)
 
-    table2b = get_table_2b_screening(screening_data, start_report, end_report)
+    table2b = get_table_2b_screening(subjects, start_report, end_report)
 
     table3_data, table3 = get_table_3_screening(consented, today, 30)
 
     ## STUDY Status
-    table4 = get_table_4(centers_df, consented, today)
+    table4 = get_table_4(consented, today)
 
     table5, table6 = get_tables_5_6(consented)
 
     ## Deviations
-    deviations = get_deviation_records(consented, clean_adverse)
+    deviations = get_deviation_records(consented, adverse_events)
     treatment_site_list = deviations.treatment_site.unique()
     treatment_site_df = pd.DataFrame(treatment_site_list, columns = ['treatment_site'])
     table7a = get_deviations_by_center(treatment_site_df, consented, deviations, display_terms_dict_multi)
     table7b = get_table7b_timelimited(deviations)
 
     ## Adverse Events
-    ae = get_adverse_event_records(consented, clean_adverse)
+    ae = get_adverse_event_records(consented, adverse_events)
     table8a = get_adverse_events_by_center(centers_df, consented, ae, display_terms_dict_multi)
     table8b = get_table_8b(ae, today, None)
 
     ## Demographics
     demographics = get_demographic_data(consented)
     # get subset of active patients
-    demo_active = demographics[demographics['Status']=='Active']
+    demo_active = demographics[demographics['Status']=='Active'].copy()
+    demo_active['category'] = demo_active.apply(lambda x: 'MCC ' + str(x['MCC'])  + ' / ' +x['Surgery'], axis=1)
 
     # Currently splitting on MCC values
-    split_col = 'MCC'
+    split_col = 'category'
 
     # SEX
     demo_df, demo_col, display_terms_dict, display_term_key = demo_active, 'Sex', display_terms_dict, 'sex'
@@ -1043,7 +1063,101 @@ def get_tables(today, start_report, end_report, report_date_msg, report_range_ms
     # Drop na
     age_df = demo_active.copy()
     age_df["Age"] = pd.to_numeric(age_df["Age"], errors='coerce') # handle records that have no age value anywhere
-    age = get_describe_col_subset(age_df, 'Age', 'MCC')
+    age = get_describe_col_subset(age_df, 'Age', 'category')
 
 
     return table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age
+
+def get_enrollment_tables(consented):
+    enrollment_df = get_enrollment_data(consented)
+
+    enrollment_df, index_col, grouping_cols, count_col_name = enrollment_df, 'obtain_month', ['mcc','screening_site','surgery_type','Site'], 'Monthly'
+    enrollment_count = enrollment_rollup(enrollment_df, index_col, grouping_cols, count_col_name)
+
+    mcc1_enrollments = get_site_enrollments(enrollment_count, 1)
+    mcc2_enrollments = get_site_enrollments(enrollment_count, 2)
+
+    enrollment_expectations_df = get_enrollment_expectations()
+    monthly_expectations = get_enrollment_expectations_monthly(enrollment_expectations_df)
+    summary_rollup = rollup_enrollment_expectations(enrollment_df, enrollment_expectations_df, monthly_expectations)
+
+    return mcc1_enrollments, mcc2_enrollments, summary_rollup
+
+
+# ----------------------------------------------------------------------------
+# Enrollment FUNCTIONS - OLD
+# ----------------------------------------------------------------------------
+# def get_enrollment_data(screening_sites,screening_data, consented):
+#     # Load screening sites
+#     screening_sites['start_date'] = pd.to_datetime(screening_sites['start_date'], errors='coerce').dt.date
+#     screening_sites = screening_sites[~(screening_sites.start_date.isna())]
+#
+#     # get enrollment data
+#     enroll_cols = ['record_id','main_record_id','obtain_date', 'redcap_data_access_group_display']
+#     enrolled = consented[consented['ewdateterm'].isna()][enroll_cols] # Do we want to do this?
+#     enrolled = enrolled.merge(screening_data[['record_id','screening_site']], how='left', on='record_id')
+#     enrolled = enrolled.merge(screening_sites[['screening_site','start_month','start_year']], how='left', on='screening_site')
+#     enrolled['obtain_year'] = enrolled['obtain_date'].dt.year
+#     enrolled['obtain_month'] = enrolled['obtain_date'].dt.month
+#     enrolled['study_month'] = 12 * (enrolled['obtain_year'] - enrolled['start_year']) + enrolled['obtain_month'] - enrolled['start_month'] + 1
+#     enrolled['study_month'] = enrolled['study_month'].astype(int)
+#     enrolled['study_month']  = np.where(enrolled['study_month']  < 1, 1, enrolled['study_month'])
+#
+#     #expected data
+#     expect = screening_sites[['screening_site','study_month','expected_enrollment']].copy()
+#     expect['expected_enrollment'] = expect['expected_enrollment'].str.split(', ')
+#     expect['study_month'] = expect['study_month'].str.split(', ')
+#     expected = expect.apply(pd.Series.explode).reset_index(drop=True)
+#     expected.dropna(inplace=True)
+#     expected['expected_enrollment'] = expected['expected_enrollment'].astype(int)
+#     expected_cum = expected.set_index(['screening_site','study_month']).groupby(level=0).cumsum().reset_index()
+#     expected_cum.columns = ['screening_site','study_month','expected_enrollment_cum']
+#     expected = expected.merge(expected_cum, on=['screening_site','study_month'])
+#     expected.rename(columns={"expected_enrollment": "Expected: Monthly", 'expected_enrollment_cum': 'Expected: Cumulative'}, inplace=True)
+#     expected = expected.melt(id_vars=['screening_site', 'study_month'])
+#     expected['study_month'] = expected['study_month'].astype(int)
+#
+#     # get rolled up data
+#     ne = enrolled[['screening_site','study_month','record_id']].copy()
+#     ne = ne.groupby(['screening_site','study_month']).count()
+#
+#     ne_cumsum = ne.groupby(level=0).cumsum().reset_index()
+#     ne_cumsum['variable'] = 'Actual: Cumulative'
+#
+#     ne = ne.reset_index()
+#     ne['variable'] = 'Actual: Monthly'
+#
+#     er = pd.concat([ne,ne_cumsum])
+#
+#     er.rename(columns={"record_id": "value"}, inplace=True)
+#
+#     # Combine enrollment with expected data
+#     enrollment = pd.concat([er,expected])
+#
+#     return enrolled, enrollment
+#
+# def get_site_enrollment(site, enrollment):
+#     df = enrollment[enrollment['screening_site'] == site]
+#     site_df = df.pivot_table(index=['study_month'],
+#                         columns=['screening_site','variable'],
+#                         values='value')
+#     site_df.columns = site_df.columns.droplevel()
+#     site_df.reset_index(inplace=True)
+#     site_df['Study Time: Year'] = site_df['study_month'].apply(lambda x: int((x-1)/12))
+#     site_df['Study Time: Month'] = site_df['study_month'].apply(lambda x: ((x-1) % 12) + 1)
+#
+#     # Fill monthly NA with 0, cumulative with max
+#     site_df['Actual: Monthly'] = site_df['Actual: Monthly'].fillna(0)
+#     site_df['Actual: Cumulative'] = site_df['Actual: Cumulative'].fillna(site_df['Actual: Cumulative'].max())
+#
+#     site_df['Percent: Monthly'] = (100 * site_df['Actual: Monthly'] / site_df['Expected: Monthly']).round(1).astype(str) + '%'
+#     site_df['Percent: Cumulative'] = (100 * site_df['Actual: Cumulative'] / site_df['Expected: Cumulative']).round(1).astype(str) + '%'
+#     site_df.loc[site_df['Actual: Monthly'] == 0, 'Percent: Monthly'] = ''
+#
+#     col_order = [ 'study_month', 'Study Time: Year', 'Study Time: Month',
+#                  'Expected: Monthly', 'Expected: Cumulative',
+#                  'Actual: Monthly', 'Actual: Cumulative',
+#                  'Percent: Monthly', 'Percent: Cumulative'
+#            ]
+#     site_df = site_df[col_order]
+#     return site_df
