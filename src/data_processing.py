@@ -119,7 +119,7 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
 # ----------------------------------------------------------------------------
 # DATA LOADING
 # ----------------------------------------------------------------------------
-def get_subjects_json(report, report_suffix, file_url_root=None, source='local', mcc_list =[1,2], DATA_PATH = None):
+def get_subjects_json(report, report_suffix, file_url_root=None, source='local', mcc_list =[1,2], DATA_PATH = DATA_PATH):
     try:
         subjects_json = {}
         # Read files into json
@@ -134,14 +134,17 @@ def get_subjects_json(report, report_suffix, file_url_root=None, source='local',
         else:
             for mcc in mcc_list:
                 mcc_filename = ''.join(['subjects-',str(mcc),'-latest.json'])
+                print(mcc_filename)
+                print(DATA_PATH)
                 mcc_file = os.path.join(DATA_PATH, mcc_filename)
+                print(mcc_file)
                 with open(mcc_file, 'r') as f:
                     subjects_json[mcc] = json.load(f)
         return subjects_json
 
     except Exception as e:
         traceback.print_exc()
-        return {'data':'not found'}
+        return None
 
 
 # ----------------------------------------------------------------------------
@@ -211,7 +214,7 @@ def create_clean_subjects(subjects_json, screening_sites, display_terms_dict, di
         consented = get_consented_subjects(subjects)
 
         # Extract adverse events data
-        adverse_events = clean_adverse_events(extract_adverse_effects_data(subjects_raw), display_terms_dict_multi)
+        adverse_events = clean_adverse_events(extract_adverse_effects_data(subjects_raw), consented, display_terms_dict_multi)
 
         return subjects, consented, adverse_events
 
@@ -244,7 +247,7 @@ def add_screening_site(screening_sites, df, id_col):
 def get_consented_subjects(subjects_with_screening_site):
     '''Get the consented patients from subjects dataframe with screening sites added'''
     consented = subjects_with_screening_site[subjects_with_screening_site.obtain_date.notnull()].copy()
-    consented['treatment_site'] = consented.apply(lambda x: use_b_if_not_a(x['sp_data_site_display'], x['redcap_data_access_group_display']), axis=1)
+    consented['treatment_site'] = consented.apply(lambda x: use_b_if_not_a(x['redcap_data_access_group_display'], x['sp_data_site_display']), axis=1)
     consented['treatment_site_type'] = consented['treatment_site'] + "/" + consented['surgery_type']
     return consented
 
@@ -284,7 +287,7 @@ def extract_adverse_effects_data(subjects_data, adverse_effects_col = 'adverse_e
     multi = multi[new_col_order]
     return multi
 
-def clean_adverse_events(adverse_events, display_terms_dict_multi):
+def clean_adverse_events(adverse_events, consented, display_terms_dict_multi):
     try:
         # Coerce to numeric
         multi_data = adverse_events.apply(pd.to_numeric, errors='ignore')
@@ -296,6 +299,9 @@ def clean_adverse_events(adverse_events, display_terms_dict_multi):
 
         # Rename 'index' to 'record_id'
         multi_data.rename(columns={"index": "record_id"}, inplace = True)
+
+        # merge with consented data to get treatment_site column
+        multi_data = consented[['record_id','treatment_site']].copy().merge(multi_data, how='right', on='record_id')
 
         return multi_data
     except Exception as e:
@@ -758,6 +764,10 @@ def get_adverse_events_by_center(centers, df, adverse_events, display_terms_mapp
     int_cols = centers_ae.columns.drop('treatment_site')
     centers_ae[int_cols] = centers_ae[int_cols].astype(int)
 
+    # Add summary row
+    centers_ae.loc['All']= centers_ae.sum(numeric_only=True, axis=0)
+    centers_ae.loc['All','treatment_site'] = 'All Sites'
+
     # Calculate % with adverse events
     centers_ae['percent_baseline_with_ae'] = 100 * (centers_ae['patients_with_ae'] / centers_ae['patients_baseline'])
     centers_ae['percent_baseline_with_ae'] = centers_ae['percent_baseline_with_ae'].map('{:,.2f}'.format)
@@ -1026,14 +1036,13 @@ def get_tables(today, start_report, end_report, report_date_msg, report_range_ms
 
     table5, table6 = get_tables_5_6(consented)
 
-    ## Deviations
+    ## Deviations & Adverse Events
+    ### Deviations
     deviations = get_deviation_records(consented, adverse_events)
-    treatment_site_list = deviations.treatment_site.unique()
-    treatment_site_df = pd.DataFrame(treatment_site_list, columns = ['treatment_site'])
-    table7a = get_deviations_by_center(treatment_site_df, consented, deviations, display_terms_dict_multi)
+    table7a = get_deviations_by_center(centers_df, consented, deviations, display_terms_dict_multi)
     table7b = get_table7b_timelimited(deviations)
 
-    ## Adverse Events
+    ### Adverse Events
     ae = get_adverse_event_records(consented, adverse_events)
     table8a = get_adverse_events_by_center(centers_df, consented, ae, display_terms_dict_multi)
     table8b = get_table_8b(ae, today, None)
