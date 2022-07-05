@@ -28,7 +28,6 @@ import plotly.graph_objects as go
 # DEBUGGING
 # ----------------------------------------------------------------------------
 
-
 # ----------------------------------------------------------------------------
 # APP Settings
 # ----------------------------------------------------------------------------
@@ -461,6 +460,7 @@ def build_page_layout(toggle_view_value, sections_dict):
 def serve_layout():
     page_meta_dict, tables_dict, sections_dict, enrollment_dict = {'report_date_msg':''}, {}, {}, {}
     report_date = datetime.now()
+
     try:
     # get data for page
     # print('time parameters')
@@ -472,53 +472,27 @@ def serve_layout():
         # display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
         display_terms, display_terms_dict, display_terms_dict_multi = load_display_terms(ASSETS_PATH, 'A2CPS_display_terms.csv')
         screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
-        # page_meta_dict['r_status'] = r_status
-
-        # Call URL for json files
-
-
         # Run Data Calls
         subjects_json = get_subjects_json(report, report_suffix, file_url_root, source='url')
-        subjects, consented, adverse_events = create_clean_subjects(subjects_json, screening_sites, display_terms_dict, display_terms_dict_multi)
-        screening_centers_df, centers_df = get_centers(subjects, consented)
+        
+        if subjects_json:
+            subjects, consented, adverse_events = create_clean_subjects(subjects_json, screening_sites, display_terms_dict, display_terms_dict_multi)
+            screening_centers_df, centers_df = get_centers(subjects, consented)
 
-        # print('GET TABLE DATA')
-        table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df)
+            # print('GET TABLE DATA')
+            table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df)
 
-        # print('building tables')
-        tables_dict = build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
+            # print('building tables')
+            tables_dict = build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
-        # print('building content')
-        section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
+            # print('building content')
+            section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
 
-        # print('get sections')
+        else:
+            section1, section2, section3, section4 = html.Div('section 1'), html.Div('section 2'), html.Div('section 3'), html.Div('section 4')
+
+            # print('get sections')
         sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
-
-        # # Enrollment report information
-        # mcc1_enrollments, mcc2_enrollments, summary_rollup = get_enrollment_tables(consented)
-        # enrollment_df = get_enrollment_data(consented)
-        #
-        # enrollment_df, index_col, grouping_cols, count_col_name = enrollment_df, 'obtain_month', ['mcc','screening_site','surgery_type','Site'], 'Monthly'
-        # enrollment_count = enrollment_rollup(enrollment_df, index_col, grouping_cols, count_col_name)
-        #
-        # mcc1_enrollments = get_site_enrollments(enrollment_count, 1)
-        # print('mcc1 ' + str(len(mcc1_enrollments)))
-        # mcc2_enrollments = get_site_enrollments(enrollment_count, 2)
-        # print('mcc2 ' + str(len(mcc1_enrollments)))
-        #
-        # enrollment_expectations_df = get_enrollment_expectations()
-        # print('enrollment_expectations_df')
-        # print(enrollment_expectations_df)
-        # monthly_expectations = get_enrollment_expectations_monthly(enrollment_expectations_df)
-        # print('monthly_expectations')
-        # print(monthly_expectations)
-        # summary_rollup = rollup_enrollment_expectations(enrollment_df, enrollment_expectations_df, monthly_expectations)
-        # print('summary_rollup')
-        # print(summary_rollup)
-        # enrollment_dict['mcc1_enrollments'] = mcc1_enrollments.to_dict('records')
-        # enrollment_dict['mcc2_enrollments'] = mcc2_enrollments.to_dict('records')
-        # enrollment_dict['summary_rollup'] = summary_rollup.to_dict('records')
-        # print('records in dictionary')
 
         page_layout = html.Div(id='page_layout')
     except Exception as e:
