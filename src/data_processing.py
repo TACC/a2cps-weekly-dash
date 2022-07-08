@@ -45,9 +45,9 @@ def convert_to_multindex(df, delimiter = ': '):
     return df_mi
 
 def datatable_settings_multiindex(df, flatten_char = '_'):
-    ''' Plotly dash datatables do not natively handle multiindex dataframes. This function takes a multiindex column set
-    and generates a flattend column name list for the dataframe, while also structuring the table dictionary to represent the
-    columns in their original multi-level format.
+    ''' Plotly dash datatables do not natively handle multiindex dataframes.
+    This function generates a flattend column name list for the dataframe,
+    while structuring the columns to maintain their original multi-level format.
 
     Function returns the variables datatable_col_list, datatable_data for the columns and data parameters of
     the dash_table.DataTable'''
@@ -120,13 +120,17 @@ def get_display_dictionary(display_terms, api_field, api_value, display_col):
 # DATA LOADING
 # ----------------------------------------------------------------------------
 def get_subjects_json(report, report_suffix, file_url_root=None, source='local', mcc_list =[1,2], DATA_PATH = DATA_PATH):
+    print(source)
     try:
         subjects_json = {}
         # Read files into json
         if source == 'url':
             for mcc in mcc_list:
+                print(mcc)
                 json_url = '/'.join([file_url_root, report,report_suffix.replace('[mcc]',str(mcc))])
+                print(json_url)
                 r = requests.get(json_url)
+                print(r.status_code)
                 if r.status_code == 200:
                 # TO DO: add an else statement to use local files if the request fails
                     mcc_json = r.json()
