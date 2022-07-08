@@ -323,7 +323,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table7a', 'table_7a')),
                 dcc.Markdown('''
-                    **Screening Site:** MCC and Screening Site
+                    **Center Name:** MCC and Treatment Site
                     **Baseline Patients:** Total number of subjects reaching baseline
                     **# with Deviation:** Total number of subjects with at least one deviation
                     **Total Deviations:** Total of all deviations at this center (a single patient can have more than one)
@@ -474,7 +474,7 @@ def serve_layout():
         screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
         # Run Data Calls
         subjects_json = get_subjects_json(report, report_suffix, file_url_root, source='url')
-        
+
         if subjects_json:
             subjects, consented, adverse_events = create_clean_subjects(subjects_json, screening_sites, display_terms_dict, display_terms_dict_multi)
             screening_centers_df, centers_df = get_centers(subjects, consented)
