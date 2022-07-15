@@ -476,6 +476,7 @@ def serve_layout():
         subjects_json = get_subjects_json(report, report_suffix, file_url_root, source='url')
 
         if subjects_json:
+            print('subjects_json')
             subjects, consented, adverse_events = create_clean_subjects(subjects_json, screening_sites, display_terms_dict, display_terms_dict_multi)
             screening_centers_df, centers_df = get_centers(subjects, consented)
 
@@ -489,7 +490,9 @@ def serve_layout():
             section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
 
         else:
-            section1, section2, section3, section4 = html.Div('section 1'), html.Div('section 2'), html.Div('section 3'), html.Div('section 4')
+            print('NO subjects_json')
+            no_data_msg = "The data for this report is not available at this time.  Please try again later."
+            section1, section2, section3, section4 = html.Div(no_data_msg), html.Div(no_data_msg), html.Div(no_data_msg), html.Div(no_data_msg)
 
             # print('get sections')
         sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
