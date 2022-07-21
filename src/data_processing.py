@@ -339,23 +339,29 @@ def get_time_parameters(end_report, report_days_range = 7):
 # ----------------------------------------------------------------------------
 # Screening Tables
 # ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# Screening Tables
+# ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# Screening Tables
+# ----------------------------------------------------------------------------
 def get_table_1_screening(df):
     try:
        # Define needed columns for this table and select subset from main dataframe
-        t1_cols = ['screening_site','participation_interest_display','record_id']
+        t1_cols = ['screening_site','surgery_type','participation_interest_display','record_id']
         t1 = df[t1_cols]
 
         # drop missing data rows
         t1 = t1.dropna()
 
         # group by center and participation interest value and count number of IDs in each group
-        t1 = t1.groupby(by=["screening_site",'participation_interest_display']).count()
+        t1 = t1.groupby(by=['screening_site','surgery_type','participation_interest_display']).count()
 
         # Reset data frame index to get dataframe in standard form with center, participation interest flag, count
         t1 = t1.reset_index()
 
         # Pivot participation interest values into separate columns
-        t1 = t1.pivot(index=['screening_site'], columns='participation_interest_display', values='record_id')
+        t1 = t1.pivot(index=['screening_site','surgery_type',], columns='participation_interest_display', values='record_id')
 
         # Reset Index so center is a column
         t1 = t1.reset_index()
@@ -369,8 +375,8 @@ def get_table_1_screening(df):
         t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
 
         # Rename and reorder columns for display
-        t1_sum = t1_sum.rename(columns = {'screening_site':'Screening Site'})
-        cols_display_order = ['Screening Site', 'All Participants', 'Yes', 'Maybe', 'No']
+        t1_sum = t1_sum.rename(columns = {'screening_site':'Screening Site', 'surgery_type':'Surgery'})
+        cols_display_order = ['Screening Site', 'Surgery','All Participants', 'Yes', 'Maybe', 'No']
         t1_sum = t1_sum[cols_display_order]
 
         return t1_sum
@@ -381,11 +387,11 @@ def get_table_1_screening(df):
 
 def get_table_2a_screening(df, display_terms_t2a):
     # Get decline columns from dataframe where participant was not interested (participation_interest == 0)
-    t2_cols = ['record_id','screening_site','reason_not_interested', 'ptinterest_comment'] # cols to select
+    t2_cols = ['record_id','screening_site','surgery_type','reason_not_interested', 'ptinterest_comment'] # cols to select
     t2 = df[df.participation_interest == 0][t2_cols]
 
     # group data by center and count the # of main_record_ids
-    t2_site_count = pd.DataFrame(t2.groupby('screening_site')['record_id'].size())
+    t2_site_count = pd.DataFrame(t2.groupby(['screening_site','surgery_type'])['record_id'].size())
 
     # rename aggregate column
     t2_site_count.columns = ['Total Declined']
@@ -402,12 +408,12 @@ def get_table_2a_screening(df, display_terms_t2a):
     t2_reasons = t2_reasons.apply(pd.to_numeric, errors='ignore')
 
     # Group the data by center and count number of entries by reason value
-    t2_reasons = pd.DataFrame(t2_reasons.groupby(['screening_site','reason_not_interested']).size())
+    t2_reasons = pd.DataFrame(t2_reasons.groupby(['screening_site','surgery_type','reason_not_interested']).size())
     t2_reasons.columns=['count']
     t2_reasons = t2_reasons.reset_index()
 
     # pivot table so the reasons are converted from values in a column to individual columns
-    t2_reasons = t2_reasons.pivot(index=['screening_site'],columns=['reason_not_interested'], values = 'count')
+    t2_reasons = t2_reasons.pivot(index=['screening_site','surgery_type'],columns=['reason_not_interested'], values = 'count')
 
     # Create dictionary from display terms dict to rename columns from int values
     reason_display_dict = display_terms_t2a.set_index('reason_not_interested').to_dict()['reason_not_interested_display']
@@ -418,8 +424,8 @@ def get_table_2a_screening(df, display_terms_t2a):
     # Merge the reasons with the data on the total count of declines by center
     # Note: the reasons may add up to < than total declined because the data entry allowed for NA. also possible more because
     # patients could select more than one reason.
-    t2_site_count_detailed = t2_site_count.merge(t2_reasons, on='screening_site')
-    t2_site_count_detailed = t2_site_count_detailed.rename(columns = {'screening_site':'Screening Site'})
+    t2_site_count_detailed = t2_site_count.merge(t2_reasons, on=['screening_site','surgery_type'])
+    t2_site_count_detailed = t2_site_count_detailed.rename(columns = {'screening_site':'Screening Site', 'surgery_type':'Surgery'})
 
     # Fill missing data with 0 and sum across all sites
     t2_site_count_detailed = t2_site_count_detailed.fillna(0)
@@ -429,14 +435,14 @@ def get_table_2a_screening(df, display_terms_t2a):
 
 def get_table_2b_screening(df, start_report, end_report):
     # Each decline includes a comment field - show these for the period of the report (previous 7 days)
-    decline_comments = df[df.participation_interest == 0][['screening_site','date_of_contact','ptinterest_comment']].dropna()
+    decline_comments = df[df.participation_interest == 0][['screening_site','surgery_type','date_of_contact','ptinterest_comment']].dropna()
 
     # Show Comments during reporting period
     decline_comments = decline_comments[(decline_comments.date_of_contact > start_report) & (decline_comments.date_of_contact <= end_report)]
 
     # Rename and reorder columns for display
-    decline_comments = decline_comments.rename(columns = {'screening_site':'Screening Site','ptinterest_comment':'Reason' })
-    cols_display_order = ['Screening Site', 'Reason']
+    decline_comments = decline_comments.rename(columns = {'screening_site':'Screening Site', 'surgery_type':'Surgery','ptinterest_comment':'Reason' })
+    cols_display_order = ['Screening Site', 'Surgery','Reason']
     decline_comments = decline_comments[cols_display_order]
 
     return decline_comments
@@ -459,7 +465,7 @@ def get_table_3_screening(df,end_report_date = datetime.now(), days_range = 30):
     # Aggregate data for table 3
     # Set the columns to groupby, and the the columns to role up with desired aggregating functions
     # Note: can supply a list of aggregate functions to one columnm i.e. 'col_name': ['min','max']
-    cols_for_groupby = ["screening_site"]
+    cols_for_groupby = ["screening_site","surgery_type"]
     aggregate_columns_dict={'main_record_id':'count',
                             'obtain_date':'max',
                              'eligible':'sum',
@@ -481,6 +487,7 @@ def get_table_3_screening(df,end_report_date = datetime.now(), days_range = 30):
     # Rename and reorder columns for display
     consent_range_col_name = 'Consents in last ' + str(days_range) +' Days'
     rename_dict = {'screening_site':'Screening Site',
+                   "surgery_type":'Surgery',
                     'main_record_id':'Consented',
                     'days_since_consent':'Days Since Last Consent',
                     'within_range':consent_range_col_name,
@@ -489,7 +496,7 @@ def get_table_3_screening(df,end_report_date = datetime.now(), days_range = 30):
                    'ewdateterm': 'Total Rescinded'
                   }
     t3_aggregate = t3_aggregate.rename(columns = rename_dict)
-    cols_display_order = ['Screening Site', 'Consented', 'Days Since Last Consent',consent_range_col_name,
+    cols_display_order = ['Screening Site','Surgery','Consented', 'Days Since Last Consent',consent_range_col_name,
                           'Total Eligible', 'Total ineligible',  'Total Rescinded'
        ]
     t3_aggregate = t3_aggregate[cols_display_order]
