@@ -473,7 +473,7 @@ def serve_layout():
         display_terms, display_terms_dict, display_terms_dict_multi = load_display_terms(ASSETS_PATH, 'A2CPS_display_terms.csv')
         screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
         # Run Data Calls
-        subjects_json = get_subjects_json(report, report_suffix, file_url_root, source='url')
+        subjects_json = get_subjects_json(report, report_suffix, file_url_root, source=DATA_SOURCE)
 
         if subjects_json:
             print('subjects_json')
