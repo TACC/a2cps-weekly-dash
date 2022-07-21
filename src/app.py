@@ -46,6 +46,7 @@ app = Dash(__name__,
 # ----------------------------------------------------------------------------
 # POINTERS TO DATA FILES AND APIS
 # ----------------------------------------------------------------------------
+local_data_date = '07/11/22'
 display_terms_file = 'A2CPS_display_terms.csv'
 
 # Directions for locating file at TACC
@@ -383,7 +384,8 @@ def get_sections_dict_for_store(section1, section2, section3, section4):
 def subjects_report(page_meta_dict):
     subjects_report = html.Div([
             dbc.Row([
-                dbc.Col(html.H2(['A2CPS Weekly Report']),width = 12),
+                dbc.Col(html.H2(['A2CPS Weekly Report']),width = 10),
+
             ]),
             dbc.Row([
                 dbc.Col([
@@ -407,27 +409,6 @@ def subjects_report(page_meta_dict):
             ]),
         ])
     return subjects_report
-
-def enrollment_report(enrollment_dict):
-    # sites = enrollment_dict['sites']
-    # enrollment = pd.DataFrame(enrollment_dict['enrollment'])
-    # tables = []
-    # for i in range(len(sites)):
-    #     site = sites[i]
-    #     site_enrollment = get_site_enrollment(site, enrollment)
-    #     # table_id = '_'.join('table' + str(i))
-    #     site_div = generate_site_div(site, site_enrollment, i)
-    #     tables.append(site_div)
-    #
-    enrollment_report = html.Div([
-        html.H1('Enrollment Report'),
-
-        # html.Div(tables),
-
-    ])
-
-    return enrollment_report
-
 
 def build_page_layout(toggle_view_value, sections_dict):
 
@@ -465,7 +446,12 @@ def serve_layout():
     # get data for page
     # print('time parameters')
         today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
-        page_meta_dict['report_date_msg'] = report_date_msg
+        if DATA_SOURCE == 'url':
+            page_meta_dict['report_date_msg'] = report_date_msg
+        elif DATA_SOURCE == 'local':
+            page_meta_dict['report_date_msg'] = 'Report generated from archived data dated ' + local_data_date
+        else:
+            page_meta_dict['report_date_msg'] = 'Data date unclear'
         page_meta_dict['report_range_msg'] = report_range_msg
         # print('get data inputs')
 
@@ -511,25 +497,8 @@ def serve_layout():
         Download(id="download-dataframe-html"),
 
         html.Div([
-            dbc.Row(
-                dbc.Col(
-                        dcc.Dropdown(
-                            id='dropdown-report',
-                            options=[
-                                {'label': 'Subjects', 'value': 'subjects'},
-                                # {'label': 'Enrollment', 'value': 'enrollment'},
-                            ],
-                            value='subjects',
-                            # value = 'enrollment',
-                            className='print-hide'
-                        )
-                ,width = 3),
-                justify="end",
-            ),
-            html.Div(id='report_content'),
-            # html.Div(page_meta_dict['r_status'])
-        ]
-        , style =CONTENT_STYLE)
+            subjects_report(page_meta_dict)
+        ], id='report_content', style =CONTENT_STYLE)
 
     ],style=TACC_IFRAME_SIZE)
     return s_layout
@@ -548,16 +517,6 @@ app.layout = serve_layout
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
-
-# Determine which report to display (TODO: add ? parameter to set this)
-@app.callback(Output("report_content","children"), Input('dropdown-report',"value"),State('store_meta', 'data'), State('store_enrollment', 'data') )
-def select_report(report, page_meta_dict, enrollment_dict):
-    if report == 'subjects':
-        return subjects_report(page_meta_dict)
-    if report == 'enrollment':
-        return enrollment_report(enrollment_dict)
-    else:
-        return html.Div('Please select a report')
 
 # Use toggle to display either tabs or single page LAYOUT
 @app.callback(Output("page_layout","children"), Input('toggle-view',"value"),State('store_sections', 'data'))
