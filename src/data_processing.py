@@ -312,13 +312,17 @@ def clean_adverse_events(adverse_events, consented, display_terms_dict_multi):
         traceback.print_exc()
         return None
 
-def get_centers(subjects, consented):
+def get_centers(subjects, consented, display_terms):
     ''' Get list of centers to use in the system '''
     # screening centers
     screening_centers_list = subjects.redcap_data_access_group_display.unique()
     screening_centers_df = pd.DataFrame(screening_centers_list, columns = ['redcap_data_access_group_display'])
     # treatment centers
-    centers_list = consented.redcap_data_access_group_display.unique()
+    # centers_list = consented.redcap_data_access_group_display.unique()
+    # Convert centers list to use ANY center, not just ones already used
+    centers_list = list(display_terms[display_terms['api_field']=='redcap_data_access_group']['data_dictionary_values'])
+
+
     centers_df = pd.DataFrame(centers_list, columns = ['treatment_site'])
     return screening_centers_df, centers_df
 

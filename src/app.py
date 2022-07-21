@@ -476,9 +476,9 @@ def serve_layout():
         subjects_json = get_subjects_json(report, report_suffix, file_url_root, source=DATA_SOURCE)
 
         if subjects_json:
-            print('subjects_json')
+            # print('subjects_json')
             subjects, consented, adverse_events = create_clean_subjects(subjects_json, screening_sites, display_terms_dict, display_terms_dict_multi)
-            screening_centers_df, centers_df = get_centers(subjects, consented)
+            screening_centers_df, centers_df = get_centers(subjects, consented, display_terms)
 
             # print('GET TABLE DATA')
             table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df)
@@ -490,7 +490,7 @@ def serve_layout():
             section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
 
         else:
-            print('NO subjects_json')
+            # print('NO subjects_json')
             no_data_msg = "The data for this report is not available at this time.  Please try again later."
             section1, section2, section3, section4 = html.Div(no_data_msg), html.Div(no_data_msg), html.Div(no_data_msg), html.Div(no_data_msg)
 
