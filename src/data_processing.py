@@ -454,12 +454,11 @@ def get_table_2b_screening(df, start_report, end_report):
 def get_table_3_screening(df,end_report_date = datetime.now(), days_range = 30):
     t3 = df
     # Get eligible patients using sp field logic
-#    eligible_cols = ['sp_inclcomply', 'sp_inclage1884' , 'sp_inclsurg','sp_exclarthkneerep','sp_exclinfdxjoint','sp_exclnoreadspkenglish','sp_mricompatscr' ]
-#     eligible = (t3.sp_inclcomply ==1) & (t3.sp_inclage1884 ==1) & (t3.sp_inclsurg ==1) & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0) & (t3.sp_exclnoreadspkenglish ==0) & (t3.sp_mricompatscr ==4)
-# Update logic to reflect addition of back patients at MCC2s who use different columns to assess
+    # eligible_short is the columns that are used and the same for both surgery types
+    # then assess the criteria *by surgery type* 'TKA' = knee, 'Thoracic' = back
     eligible_short = (t3.sp_inclcomply ==1) & (t3.sp_inclage1884 ==1) & (t3.sp_inclsurg ==1) & (t3.sp_exclnoreadspkenglish ==0) & (t3.sp_mricompatscr ==4)
-    eligible_knee = (t3.mcc == 1) & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0)
-    eligible_back = (t3.mcc == 2) & (t3.sp_exclothmajorsurg ==0) & (t3.sp_exclprevbilthorpro ==0)
+    eligible_knee = (t3.surgery_type == 'TKA') & (t3.sp_exclarthkneerep ==0) & (t3.sp_exclinfdxjoint ==0) & (t3.sp_exclbilkneerep ==0)
+    eligible_back = (t3.surgery_type == 'Thoracic') & (t3.sp_exclothmajorsurg ==0) & (t3.sp_exclprevbilthorpro ==0)
     t3['eligible'] = (eligible_short & eligible_knee) | (eligible_short & eligible_back)
 
     # Get conset within last days range days

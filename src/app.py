@@ -46,7 +46,7 @@ app = Dash(__name__,
 # ----------------------------------------------------------------------------
 # POINTERS TO DATA FILES AND APIS
 # ----------------------------------------------------------------------------
-local_data_date = '07/11/22'
+local_data_date = '08/15/22'
 display_terms_file = 'A2CPS_display_terms.csv'
 
 # Directions for locating file at TACC
