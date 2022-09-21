@@ -9,3 +9,4 @@ plotly==5.3.1
 numpy==1.20.1
 requests
 xlsxwriter==1.4.3
+Werkzeug==2.0.3
