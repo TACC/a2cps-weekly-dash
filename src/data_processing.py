@@ -349,11 +349,52 @@ def get_time_parameters(end_report, report_days_range = 7):
 # ----------------------------------------------------------------------------
 # Screening Tables
 # ----------------------------------------------------------------------------
-def get_table_1_screening(df):
+# def get_table_1_screening(df):
+#     try:
+#        # Define needed columns for this table and select subset from main dataframe
+#         t1_cols = ['screening_site','surgery_type','participation_interest_display','record_id']
+#         t1 = df[t1_cols]
+
+#         # drop missing data rows
+#         t1 = t1.dropna()
+
+#         # group by center and participation interest value and count number of IDs in each group
+#         t1 = t1.groupby(by=['screening_site','surgery_type','participation_interest_display']).count()
+
+#         # Reset data frame index to get dataframe in standard form with center, participation interest flag, count
+#         t1 = t1.reset_index()
+
+#         # Pivot participation interest values into separate columns
+#         t1 = t1.pivot(index=['screening_site','surgery_type',], columns='participation_interest_display', values='record_id')
+
+#         # Reset Index so center is a column
+#         t1 = t1.reset_index()
+
+#         # remove index name
+#         t1.columns.name = None
+
+#         # Create Summary row ('All Sites') and Summary column ('All Participants')
+#         t1_sum = t1
+#         t1_sum.loc['All Sites']= t1_sum.sum(numeric_only=True, axis=0)
+#         t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
+
+#         # Rename and reorder columns for display
+#         t1_sum = t1_sum.rename(columns = {'screening_site':'Screening Site', 'surgery_type':'Surgery'})
+#         cols_display_order = ['Screening Site', 'Surgery','All Participants', 'Yes', 'Maybe', 'No']
+#         t1_sum = t1_sum[cols_display_order]
+
+#         return t1_sum
+#     except Exception as e:
+#         traceback.print_exc()
+
+#         return None
+
+def get_table_1_screening(subjects, consented):
     try:
+        # Get Screening information on ALL subjects
        # Define needed columns for this table and select subset from main dataframe
         t1_cols = ['screening_site','surgery_type','participation_interest_display','record_id']
-        t1 = df[t1_cols]
+        t1 = subjects[t1_cols]
 
         # drop missing data rows
         t1 = t1.dropna()
@@ -367,23 +408,42 @@ def get_table_1_screening(df):
         # Pivot participation interest values into separate columns
         t1 = t1.pivot(index=['screening_site','surgery_type',], columns='participation_interest_display', values='record_id')
 
-        # Reset Index so center is a column
-        t1 = t1.reset_index()
-
         # remove index name
         t1.columns.name = None
+        
+        # Add column of ALL Screened Participants
+        t1.loc[:,'All Screened'] = t1.sum(numeric_only=True, axis=1)
+        
+        # Get counts for *CONSENTED* subjects by site
+        t1_consent_cols = ['screening_site','surgery_type','record_id']
+        t1_consent = consented[t1_consent_cols]
 
-        # Create Summary row ('All Sites') and Summary column ('All Participants')
-        t1_sum = t1
-        t1_sum.loc['All Sites']= t1_sum.sum(numeric_only=True, axis=0)
-        t1_sum.loc[:,'All Participants'] = t1_sum.sum(numeric_only=True, axis=1)
+        # drop missing data rows
+        t1_consent = t1_consent.dropna()
 
-        # Rename and reorder columns for display
-        t1_sum = t1_sum.rename(columns = {'screening_site':'Screening Site', 'surgery_type':'Surgery'})
-        cols_display_order = ['Screening Site', 'Surgery','All Participants', 'Yes', 'Maybe', 'No']
-        t1_sum = t1_sum[cols_display_order]
+        # group by center and participation interest value and count number of IDs in each group
+        t1_consent = t1_consent.groupby(by=['screening_site','surgery_type']).count()
+        
+        # Merge Tables
+        t1 = t1.join(t1_consent)
 
-        return t1_sum
+        # Reset Index so center is a column
+        t1 = t1.reset_index()
+        
+#         # Rename consented count of record_id to 'Consented'
+        t1.rename(columns={'screening_site':'Screening Site', 'surgery_type':'Surgery', 'record_id': 'Consented'}, inplace=True)
+
+        # Create Summary row ('All Sites')
+        t1.loc['All Sites']= t1.sum(numeric_only=True, axis=0)
+        
+        # Proportion enrolled
+        t1['% Enrolled'] = round(100*t1['Consented']/t1['All Screened'],2)
+
+#         # Reorder columns for display
+        cols_display_order = ['Screening Site', 'Surgery','All Screened', 'Yes', 'Maybe', 'No','Consented','% Enrolled']
+        t1 = t1[cols_display_order]
+
+        return t1
     except Exception as e:
         traceback.print_exc()
 
@@ -1036,7 +1096,7 @@ def rollup_enrollment_expectations(enrollment_df, enrollment_expectations_df, mo
 def get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df):
     ''' Load all the data for the page'''
     ## SCREENING TABLES
-    table1 = get_table_1_screening(subjects)
+    table1 = get_table_1_screening(subjects, consented)
 
     display_terms_t2a = display_terms_dict_multi['reason_not_interested']
     table2a = get_table_2a_screening(subjects, display_terms_t2a)
