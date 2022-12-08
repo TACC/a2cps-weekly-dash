@@ -198,12 +198,12 @@ def generate_site_div(site, df, id_index, table_display = 'none'):
 # ----------------------------------------------------------------------------
 
 
-def build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age):
-    tables_names = ("table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
-    excel_sheet_names = ("Screened", "Decline_Reasons", "Decline_Comments", "Consent", "Stud_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
+def build_tables_dict(table1a, table1b, table2a, table2b, table3a, table3b, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age):
+    tables_names = ("table1a", "table1b", "table2a", "table2b", "table3a", "table3b","table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
+    excel_sheet_names = ("Screened_site","Screened_MCC", "Decline_Reasons", "Decline_Comments", "Consent_site","Consent_mcc", "Study_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
     "Adverse_Events", "Adverse_Events_Description", "Gender", "Race", "Ethnicity", "Age")
 
-    tables = (table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
+    tables = (table1a, table1b, table2a, table2b, table3a, table3b, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
     tables_dict = {}
 
@@ -279,9 +279,14 @@ def build_content(tables_dict, page_meta_dict):
             dbc.CardBody([
                 html.H5('Table 3. Number of Subjects Consented'),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable_from_table_dict(tables_dict, 'table3', 'table_3')),
+                html.H6('Table 3.a. Consented Subjects by Site and Surgery type'),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table3a', 'table_3a')),
+                html.H6('Table 3.b. Consented Screened by MCC and Surgery type'),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table3b', 'table_3b')),
                 dcc.Markdown('''
-                    **Center Name:** MCC and Site
+                    **Center Name:** MCC and Treatment Site
+                    **MCC:** MCC
+                    **Surgery:** Surgery type - Knee (TKA) or Thoracic
                     **Consented:** Total number of subjects consented
                     **Days Since Last Consent:** Number of days since most recent consent (for sites who have consented at least one subject)
                     **Consents in last 30 days** : Rate of consent per 30 days
@@ -467,10 +472,10 @@ def serve_layout():
             screening_centers_df, centers_df = get_centers(subjects, consented, display_terms)
 
             # print('GET TABLE DATA')
-            table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df)
+            table1a, table1b, table2a, table2b, table3a, table3b, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df)
 
             # print('building tables')
-            tables_dict = build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
+            tables_dict = build_tables_dict(table1a, table1b, table2a, table2b, table3a, table3b, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
             # print('building content')
             section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
@@ -541,7 +546,7 @@ def click_excel(n_clicks,store):
 
             writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
 
-            tables_names = ["table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age"]
+            tables_names = ["table1a","table1b", "table2a", "table2b", "table3a", "table3b", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age"]
             for table in tables_names:
                 excel_sheet_name = store[table]['excel_sheet_name']
                 df = pd.DataFrame(store[table]['data'])
