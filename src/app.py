@@ -284,7 +284,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.H6('Table 3.b. Consented Screened by MCC and Surgery type'),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table3b', 'table_3b')),
                 dcc.Markdown('''
-                    **Center Name:** MCC and Treatment Site
+                    **Screening Site:** MCC and Screening Site
                     **MCC:** MCC
                     **Surgery:** Surgery type - Knee (TKA) or Thoracic
                     **Consented:** Total number of subjects consented

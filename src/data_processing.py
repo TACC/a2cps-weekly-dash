@@ -1069,7 +1069,7 @@ def get_tables(today, start_report, end_report, report_date_msg, report_range_ms
 
     table2b = get_table_2b_screening(subjects, start_report, end_report)
 
-    table3a = get_table_3_screening(consented, ["treatment_site","surgery_type"], today, 30)
+    table3a = get_table_3_screening(consented, ["screening_site","surgery_type"], today, 30)
     table3b = get_table_3_screening(consented, ["mcc","surgery_type"], today, 30)
 
     ## STUDY Status
