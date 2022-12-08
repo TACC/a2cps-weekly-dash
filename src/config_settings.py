@@ -40,4 +40,4 @@ def get_django_user():
 DATA_PATH = pathlib.Path(__file__).parent.joinpath("data")
 ASSETS_PATH = pathlib.Path(__file__).parent.joinpath("assets")
 REQUESTS_PATHNAME_PREFIX = os.environ.get("REQUESTS_PATHNAME_PREFIX", "/")
-DATA_SOURCE = 'local' # switch to url for API
+DATA_SOURCE = 'url' # switch to url for API, 'local' for local data files

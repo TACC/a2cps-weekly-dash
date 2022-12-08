@@ -1061,6 +1061,7 @@ def rollup_enrollment_expectations(enrollment_df, enrollment_expectations_df, mo
 def get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df):
     ''' Load all the data for the page'''
     ## SCREENING TABLES
+
     table1a = get_table_1_screening(subjects, consented, ['screening_site','surgery_type'])
     table1b = get_table_1_screening(subjects, consented, ['mcc','surgery_type'])
 
