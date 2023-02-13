@@ -28,7 +28,6 @@ import plotly.graph_objects as go
 # DEBUGGING
 # ----------------------------------------------------------------------------
 
-
 # ----------------------------------------------------------------------------
 # APP Settings
 # ----------------------------------------------------------------------------
@@ -47,6 +46,7 @@ app = Dash(__name__,
 # ----------------------------------------------------------------------------
 # POINTERS TO DATA FILES AND APIS
 # ----------------------------------------------------------------------------
+local_data_date = '08/15/22'
 display_terms_file = 'A2CPS_display_terms.csv'
 
 # Directions for locating file at TACC
@@ -198,12 +198,12 @@ def generate_site_div(site, df, id_index, table_display = 'none'):
 # ----------------------------------------------------------------------------
 
 
-def build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age):
-    tables_names = ("table1", "table2a", "table2b", "table3", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
-    excel_sheet_names = ("Screened", "Decline_Reasons", "Decline_Comments", "Consent", "Stud_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
+def build_tables_dict(table1a, table1b, table2a, table2b, table3a, table3b, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age):
+    tables_names = ("table1a", "table1b", "table2a", "table2b", "table3a", "table3b","table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age")
+    excel_sheet_names = ("Screened_site","Screened_MCC", "Decline_Reasons", "Decline_Comments", "Consent_site","Consent_mcc", "Study_Status", "Rescinded_Consent", "Early_Termination", "Protocol_Deviations", "Protocol_Deviations_Description",
     "Adverse_Events", "Adverse_Events_Description", "Gender", "Race", "Ethnicity", "Age")
 
-    tables = (table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
+    tables = (table1a, table1b, table2a, table2b, table3a, table3b, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
     tables_dict = {}
 
@@ -279,9 +279,14 @@ def build_content(tables_dict, page_meta_dict):
             dbc.CardBody([
                 html.H5('Table 3. Number of Subjects Consented'),
                 html.Div([report_date_msg, '. Table is cumulative over study']),
-                html.Div(build_datatable_from_table_dict(tables_dict, 'table3', 'table_3')),
+                html.H6('Table 3.a. Consented Subjects by Site and Surgery type'),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table3a', 'table_3a')),
+                html.H6('Table 3.b. Consented Screened by MCC and Surgery type'),
+                html.Div(build_datatable_from_table_dict(tables_dict, 'table3b', 'table_3b')),
                 dcc.Markdown('''
-                    **Center Name:** MCC and Site
+                    **Screening Site:** MCC and Screening Site
+                    **MCC:** MCC
+                    **Surgery:** Surgery type - Knee (TKA) or Thoracic
                     **Consented:** Total number of subjects consented
                     **Days Since Last Consent:** Number of days since most recent consent (for sites who have consented at least one subject)
                     **Consents in last 30 days** : Rate of consent per 30 days
@@ -324,7 +329,7 @@ def build_content(tables_dict, page_meta_dict):
                 html.Div([report_date_msg, '. Table is cumulative over study']),
                 html.Div(build_datatable_from_table_dict(tables_dict, 'table7a', 'table_7a')),
                 dcc.Markdown('''
-                    **Screening Site:** MCC and Screening Site
+                    **Center Name:** MCC and Treatment Site
                     **Baseline Patients:** Total number of subjects reaching baseline
                     **# with Deviation:** Total number of subjects with at least one deviation
                     **Total Deviations:** Total of all deviations at this center (a single patient can have more than one)
@@ -384,7 +389,8 @@ def get_sections_dict_for_store(section1, section2, section3, section4):
 def subjects_report(page_meta_dict):
     subjects_report = html.Div([
             dbc.Row([
-                dbc.Col(html.H2(['A2CPS Weekly Report']),width = 12),
+                dbc.Col(html.H2(['A2CPS Weekly Report']),width = 10),
+
             ]),
             dbc.Row([
                 dbc.Col([
@@ -408,25 +414,6 @@ def subjects_report(page_meta_dict):
             ]),
         ])
     return subjects_report
-
-def enrollment_report(enrollment_dict):
-    sites = enrollment_dict['sites']
-    enrollment = pd.DataFrame(enrollment_dict['enrollment'])
-    tables = []
-    for i in range(len(sites)):
-        site = sites[i]
-        site_enrollment = get_site_enrollment(site, enrollment)
-        # table_id = '_'.join('table' + str(i))
-        site_div = generate_site_div(site, site_enrollment, i)
-        tables.append(site_div)
-
-    enrollment_report = html.Div([
-        html.H1('Enrollment Report'),
-        html.Div(tables),
-
-    ])
-    return enrollment_report
-
 
 def build_page_layout(toggle_view_value, sections_dict):
 
@@ -459,43 +446,52 @@ def build_page_layout(toggle_view_value, sections_dict):
 def serve_layout():
     page_meta_dict, tables_dict, sections_dict, enrollment_dict = {'report_date_msg':''}, {}, {}, {}
     report_date = datetime.now()
-    # try:
+
+    try:
     # get data for page
     # print('time parameters')
-    today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
-    page_meta_dict['report_date_msg'] = report_date_msg
-    page_meta_dict['report_range_msg'] = report_range_msg
-    # print('get data inputs')
+        today, start_report, end_report, report_date_msg, report_range_msg  = get_time_parameters(report_date)
+        if DATA_SOURCE == 'url':
+            page_meta_dict['report_date_msg'] = report_date_msg
+        elif DATA_SOURCE == 'local':
+            page_meta_dict['report_date_msg'] = 'Report generated from archived data dated ' + local_data_date
+        else:
+            page_meta_dict['report_date_msg'] = 'Data date unclear'
+        page_meta_dict['report_range_msg'] = report_range_msg
+        # print('get data inputs')
 
-    display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
-    page_meta_dict['r_status'] = r_status
+        # display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df, r_status = get_data_for_page(ASSETS_PATH, display_terms_file, file_url_root, report, report_suffix, mcc_list)
+        display_terms, display_terms_dict, display_terms_dict_multi = load_display_terms(ASSETS_PATH, 'A2CPS_display_terms.csv')
+        screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
+        # Run Data Calls
+        subjects_json = get_subjects_json(report, report_suffix, file_url_root, source=DATA_SOURCE)
 
-    # print('GET TABLE DATA')
-    table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg,display_terms, display_terms_dict, display_terms_dict_multi, clean_weekly, consented, screening_data, clean_adverse, centers_df)
+        if subjects_json:
+            # print('subjects_json')
+            subjects, consented, adverse_events = create_clean_subjects(subjects_json, screening_sites, display_terms_dict, display_terms_dict_multi)
+            screening_centers_df, centers_df = get_centers(subjects, consented, display_terms)
 
-    # print('building tables')
-    tables_dict = build_tables_dict(table1, table2a, table2b, table3, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
+            # print('GET TABLE DATA')
+            table1a, table1b, table2a, table2b, table3a, table3b, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age = get_tables(today, start_report, end_report, report_date_msg, report_range_msg, display_terms, display_terms_dict, display_terms_dict_multi, subjects, consented, adverse_events, centers_df)
 
-    # print('building content')
-    section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
+            # print('building tables')
+            tables_dict = build_tables_dict(table1a, table1b, table2a, table2b, table3a, table3b, table4, table5, table6, table7a, table7b, table8a, table8b, sex, race, ethnicity, age)
 
-    # print('get sections')
-    sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
+            # print('building content')
+            section1, section2, section3, section4 = build_content(tables_dict, page_meta_dict)
 
-    # Enrollment report information
-    # print(consented.columns)
-    screening_data = add_screening_site(ASSETS_PATH, clean_weekly, 'record_id')
-    screening_sites = pd.read_csv(os.path.join(ASSETS_PATH, 'screening_sites.csv'))
-    enrolled, enrollment = get_enrollment_data(screening_sites,screening_data, consented)
-    sites = list(enrollment[enrollment.variable == 'Actual: Monthly']['screening_site'].unique())
-    enrollment_dict['enrolled'] = enrolled.to_dict('records')
-    enrollment_dict['enrollment'] = enrollment.to_dict('records')
-    enrollment_dict['sites'] = sites
+        else:
+            # print('NO subjects_json')
+            no_data_msg = "The data for this report is not available at this time.  Please try again later."
+            section1, section2, section3, section4 = html.Div(no_data_msg), html.Div(no_data_msg), html.Div(no_data_msg), html.Div(no_data_msg)
 
-    page_layout = html.Div(id='page_layout')
-    # except Exception as e:
-    #     traceback.print_exc()
-    #     page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
+            # print('get sections')
+        sections_dict = get_sections_dict_for_store(section1, section2, section3, section4)
+
+        page_layout = html.Div(id='page_layout')
+    except Exception as e:
+        traceback.print_exc()
+        page_layout = html.Div(['There has been a problem accessing the data for this Report.'])
 
     s_layout = html.Div([
         dcc.Store(id='store_meta', data = page_meta_dict),
@@ -506,24 +502,8 @@ def serve_layout():
         Download(id="download-dataframe-html"),
 
         html.Div([
-            dbc.Row(
-                dbc.Col(
-                        dcc.Dropdown(
-                            id='dropdown-report',
-                            options=[
-                                {'label': 'Subjects', 'value': 'subjects'},
-                                {'label': 'Enrollment', 'value': 'enrollment'},
-                            ],
-                            value='subjects',
-                            className='print-hide'
-                        )
-                ,width = 3),
-                justify="end",
-            ),
-            html.Div(id='report_content'),
-            # html.Div(page_meta_dict['r_status'])
-        ]
-        , style =CONTENT_STYLE)
+            subjects_report(page_meta_dict)
+        ], id='report_content', style =CONTENT_STYLE)
 
     ],style=TACC_IFRAME_SIZE)
     return s_layout
@@ -543,16 +523,6 @@ app.layout = serve_layout
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
 
-# Determine which report to display (TODO: add ? parameter to set this)
-@app.callback(Output("report_content","children"), Input('dropdown-report',"value"),State('store_meta', 'data'), State('store_enrollment', 'data') )
-def select_report(report, page_meta_dict, enrollment_dict):
-    if report == 'subjects':
-        return subjects_report(page_meta_dict)
-    if report == 'enrollment':
-        return enrollment_report(enrollment_dict)
-    else:
-        return html.Div('Please select a report')
-
 # Use toggle to display either tabs or single page LAYOUT
 @app.callback(Output("page_layout","children"), Input('toggle-view',"value"),State('store_sections', 'data'))
 def set_page_layout(value, sections):
@@ -568,26 +538,40 @@ def click_excel(n_clicks,store):
     if n_clicks == 0:
         raise PreventUpdate
     if store:
-        # msg =  html.Div(json.dumps(store))
-        today = datetime.now().strftime('%Y_%m_%d')
-        download_filename = datetime.now().strftime('%Y_%m_%d') + '_a2cps_weekly_report_data.xlsx'
-        table_keys = store.keys()
+        try:
+            # msg =  html.Div(json.dumps(store))
+            today = datetime.now().strftime('%Y_%m_%d')
+            download_filename = datetime.now().strftime('%Y_%m_%d') + '_a2cps_weekly_report_data.xlsx'
+            table_keys = store.keys()
 
-        writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
+            writer = pd.ExcelWriter(download_filename, engine='xlsxwriter')
 
-        for key in table_keys:
-            excel_sheet_name = store[key]['excel_sheet_name']
-            df = pd.DataFrame(store[key]['data'])
-            if len(df) == 0 :
-                df = pd.DataFrame(columns =['No data for this table'])
-            df.to_excel(writer, sheet_name=excel_sheet_name, index = False)
-        writer.save()
+            tables_names = ["table1a","table1b", "table2a", "table2b", "table3a", "table3b", "table4", "table5", "table6", "table7a", "table7b", "table8a", "table8b", "sex", "race", "ethnicity", "age"]
+            for table in tables_names:
+                excel_sheet_name = store[table]['excel_sheet_name']
+                df = pd.DataFrame(store[table]['data'])
 
-        excel_file =  send_file(writer, download_filename)
+                # convert multiindex columns and remove the '_'
+                new_cols = []
+                for i in list(df.columns):
+                    if i[0] == '_':
+                        new_cols.append(i[1:])
+                    else:
+                        new_cols.append(i.replace('_',': '))
+                df.columns = new_cols
 
-    else:
-        excel_file = None
-    return excel_file
+                if len(df) == 0 :
+                    df = pd.DataFrame(columns =['No data for this table'])
+                df.to_excel(writer, sheet_name=excel_sheet_name, index = False)
+
+            writer.save()
+            excel_file =  send_file(writer, download_filename)
+            return excel_file
+
+        except Exception as e:
+            traceback.print_exc()
+            return None
+
 
 # ----------------------------------------------------------------------------
 # RUN APPLICATION
